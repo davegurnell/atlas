@@ -5,6 +5,8 @@ import unindent._
 
 object TopLevelEvalSuite extends SimpleTestSuite {
   test("recursive bindings") {
+    this.ignore()
+
     val code = i"""
       let even = n -> if n == 0 then true else odd(n - 1)
       let odd  = n -> if n == 0 then false else even(n - 1)

@@ -8,7 +8,7 @@ object Eval {
 
   final case class Error(text: String)
 
-  type Step[A] = EitherT[Lambda[A => State[Env, A]], Error, A]
+  type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
 
   def apply(top: TopLevel, env: Env, ref: Ref = Ref("main")): Either[Error, Value] =
     evalTopLevel(top, ref).value.runA(env).value

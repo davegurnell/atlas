@@ -1,4 +1,4 @@
-package ds
+package atlas
 
 trait NativeFuncBoilerplate {
   // self: NativeFuncFunctions =>
