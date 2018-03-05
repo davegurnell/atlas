@@ -21,7 +21,7 @@ object TopLevelEvalSuite extends SimpleTestSuite {
   }
 
   def assertSuccess[A](code: String, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit = {
-    Parser.topLevel(code) match {
+    Parser.prog(code) match {
       case Right(topLevel) =>
         assertEquals(Eval(topLevel, env, Ast.Ref("result")), Right(expected))
       case Left(error) =>
@@ -30,7 +30,7 @@ object TopLevelEvalSuite extends SimpleTestSuite {
   }
 
   def assertFailure(code: String, env: Env, expected: Eval.Error): Unit = {
-    Parser.topLevel(code) match {
+    Parser.prog(code) match {
       case Right(topLevel) =>
         assertEquals(Eval(topLevel, env, Ast.Ref("result")), Left(expected))
       case Left(error) =>

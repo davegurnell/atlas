@@ -1,7 +1,7 @@
 package atlas
 
 object Ast {
-  final case class TopLevel(stmts: List[Stmt])
+  final case class Prog(stmts: List[Stmt])
 
   sealed abstract class Stmt extends Product with Serializable
   final case class Defn(ref: Ref, expr: Expr) extends Stmt

@@ -1,12 +1,13 @@
 package atlas
 
 import minitest._
+import syntax._
 import unindent._
 
 object ExprEvalSuite extends SimpleTestSuite {
   test("constant") {
     assertSuccess(
-      "true",
+      expr"true",
       Env.empty,
       true
     )
@@ -14,7 +15,7 @@ object ExprEvalSuite extends SimpleTestSuite {
 
   test("infix") {
     assertSuccess(
-      "1 + 2 + 3",
+      expr"1 + 2 + 3",
       Env.empty,
       6
     )
@@ -22,7 +23,7 @@ object ExprEvalSuite extends SimpleTestSuite {
 
   test("variable reference") {
     assertSuccess(
-      "foo",
+      expr"foo",
       Env.empty.set("foo", true),
       true
     )
@@ -30,14 +31,14 @@ object ExprEvalSuite extends SimpleTestSuite {
 
   test("variable not in env") {
     assertFailure(
-      "foo",
+      expr"foo",
       Env.empty,
       Eval.Error("Not in scope: foo")
     )
   }
 
   test("function application") {
-    val code = i"""
+    val code = expr"""
       add(mul(a, b), mul(4, 5))
       """
 
@@ -53,7 +54,7 @@ object ExprEvalSuite extends SimpleTestSuite {
   }
 
   test("lexical scoping") {
-    val code = i"""
+    val code = expr"""
       do
         let a = 1
         let bound = () -> a
@@ -69,21 +70,9 @@ object ExprEvalSuite extends SimpleTestSuite {
     assertSuccess(code, env, expected)
   }
 
-  def assertSuccess[A](code: String, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit = {
-    Parser.expr(code) match {
-      case Right(expr) =>
-        assertEquals(Eval(expr, env), Right(enc(expected)))
-      case Left(error) =>
-        fail("Could not parse expression: " + error)
-    }
-  }
+  def assertSuccess[A](expr: Ast.Expr, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit =
+    assertEquals(Eval(expr, env), Right(enc(expected)))
 
-  def assertFailure(code: String, env: Env, expected: Eval.Error): Unit = {
-    Parser.expr(code) match {
-      case Right(expr) =>
-        assertEquals(Eval(expr, env), Left(expected))
-      case Left(error) =>
-        fail("Could not parse expression: " + error)
-    }
-  }
+  def assertFailure(expr: Ast.Expr, env: Env, expected: Eval.Error): Unit =
+    assertEquals(Eval(expr, env), Left(expected))
 }

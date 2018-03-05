@@ -10,15 +10,15 @@ object Eval {
 
   type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
 
-  def apply(top: TopLevel, env: Env, ref: Ref = Ref("main")): Either[Error, Value] =
-    evalTopLevel(top, ref).value.runA(env).value
+  def apply(prog: Prog, env: Env, ref: Ref = Ref("main")): Either[Error, Value] =
+    evalTopLevel(prog, ref).value.runA(env).value
 
   def apply(expr: Expr, env: Env): Either[Error, Value] =
     evalExpr(expr).value.runA(env).value
 
-  def evalTopLevel(top: TopLevel, ref: Ref): Step[Value] =
+  def evalTopLevel(prog: Prog, ref: Ref): Step[Value] =
     for {
-      _   <- evalStmts(top.stmts)
+      _   <- evalStmts(prog.stmts)
       ans <- evalExpr(ref)
     } yield ans
 

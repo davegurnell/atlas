@@ -10,20 +10,20 @@ object Parser {
   case class Error(message: String, index: Int)
 
   def expr(code: String): Either[Error, Expr] =
-    parse(parsers.expr, code)
+    parse(parsers.exprToEnd, code)
 
   def stmt(code: String): Either[Error, Stmt] =
-    parse(parsers.stmt, code)
+    parse(parsers.stmtToEnd, code)
 
-  def topLevel(code: String): Either[Error, TopLevel] =
-    parse(parsers.topLevel, code)
+  def prog(code: String): Either[Error, Prog] =
+    parse(parsers.progToEnd, code)
 
   private def parse[A](parser: Parser[A], code: String): Either[Error, A] = {
     parser.parse(code) match {
       case failure: Parsed.Failure =>
         Left(Error(failure.msg, failure.index))
 
-      case Parsed.Success(value, index) =>
+      case Parsed.Success(value, _) =>
         Right(value)
     }
   }
@@ -246,6 +246,18 @@ trait AllParsers {
   val stmt: Parser[Stmt] =
     P(defn | expr)
 
-  val topLevel: Parser[TopLevel] =
-    P(stmt.rep(sep = ws1)).map(stmts => TopLevel(stmts.toList))
+  val prog: Parser[Prog] =
+    P(stmt.rep(sep = ws1)).map(stmts => Prog(stmts.toList))
+
+  def toEnd[A](parser: Parser[A]): Parser[A] =
+    P(ws ~ parser ~ ws ~ End)
+
+  val exprToEnd: Parser[Expr] =
+    P(toEnd(expr))
+
+  val stmtToEnd: Parser[Stmt] =
+    P(toEnd(stmt))
+
+  val progToEnd: Parser[Prog] =
+    P(toEnd(prog))
 }
