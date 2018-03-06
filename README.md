@@ -53,7 +53,7 @@ even(10)
 
 Basic literals are Javascript-like:
 
-```
+```ruby
 'foo'      # single-quoted string
 "foo"      # double-quoted string
 1          # integer
@@ -69,7 +69,7 @@ There are a fixed set of built-in
 prefix and infix operators.
 In order of decreasing precedence these are:
 
-```
+```ruby
 !a         # boolean not
 -a         # negation
 +a         # erm... non-negation
@@ -96,7 +96,7 @@ a || b     # boolean or
 Function literals are written with the `->` symbol.
 Parentheses are optional if there is only one argument:
 
-```
+```ruby
 (a, b) -> a + b
 n -> n + 1
 ```
@@ -107,13 +107,13 @@ there are several types of expression.
 
 Function applications look like Javascript:
 
-```
+```ruby
 max(1, 2)
 ```
 
 as do field references:
 
-```
+```ruby
 foo.bar.baz
 ```
 
@@ -123,7 +123,7 @@ The `else` clause is mandatory.
 The result is the value
 of the expression in the relevant arm:
 
-```
+```ruby
 if expr then expr else expr
 ```
 
@@ -131,7 +131,7 @@ Blocks introduce scopes
 and allow the definition of intermediate variables.
 The result is the value of the final expression:
 
-```
+```ruby
 do
   stmt
   stmt
@@ -142,7 +142,7 @@ end
 Statements are expressions (evaluated for their side-effects)
 or declarations, introduced with the `let` keyword:
 
-```
+```ruby
 let add = (a, b) -> a + b
 let ten = add(3, 7)
 ```
@@ -151,7 +151,7 @@ Function bodies can refer to earlier or later bindings
 in the block where they are defined,
 allowing mutually recursive definitions:
 
-```
+```ruby
 let even = n ->
   if n == 0 then true else odd(n - 1)
 
@@ -164,7 +164,7 @@ even(10)
 Comments are written with the `#` symbol
 and run to the end of the line:
 
-```
+```ruby
 # Calculate a factorial:
 let fact = n ->
   if n == 1
@@ -178,7 +178,7 @@ but are written without the `do` and `end` keywords.
 If the program ends with a statement,
 an implicit `null` expression is added to the end:
 
-```
+```ruby
 let fib = n ->
   if n <= 2
   then 1
