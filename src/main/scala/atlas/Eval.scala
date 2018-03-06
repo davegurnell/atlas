@@ -41,7 +41,7 @@ object Eval {
   def evalDefn(defn: Defn): Step[Unit] =
     for {
       value <- evalExpr(defn.expr)
-      _     <- inspectEnv(_.set(defn.ref.id, value))
+      _     <- inspectEnv(_.scopes.head.destructiveSet(defn.ref.id, value))
     } yield ()
 
   def evalExpr(expr: Expr): Step[Value] =
@@ -122,7 +122,7 @@ object Eval {
       pushScope {
         for {
           env <- currentEnv
-          _    = env.setAll(closure.func.args.map(_.id).zip(args))
+          _    = env.scopes.head.destructiveSetAll(closure.func.args.map(_.id).zip(args))
           ans <- evalExpr(closure.func.body)
         } yield ans
       }

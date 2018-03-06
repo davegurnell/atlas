@@ -4,8 +4,14 @@ final case class Scope(var bindings: Map[String, Value]) {
   def get(id: String): Option[Value] =
     bindings.collectFirst { case (`id`, value) => value }
 
-  def set(id: String, value: Value): Unit =
+  def set[A](id: String, value: Value): Scope =
+    Scope(bindings + ((id, value)))
+
+  def destructiveSet(id: String, value: Value): Unit =
     bindings = bindings + ((id, value))
+
+  def destructiveSetAll(bindings: Seq[(String, Value)]): Unit =
+    bindings.foreach { case (id, value) => destructiveSet(id, value) }
 }
 
 object Scope {
@@ -23,20 +29,11 @@ final case class Env(scopes: List[Scope]) {
     loop(scopes)
   }
 
-  def set(id: String, value: Value): Env = {
-    scopes.head.set(id, value)
-    this
-  }
+  def set(id: String, value: Value): Env =
+    Env(scopes.head.set(id, value) :: scopes.tail)
 
-  def set[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Env = {
-    scopes.head.set(id, enc(value))
-    this
-  }
-
-  def setAll(bindings: Seq[(String, Value)]): Env = {
-    bindings.foreach { case (id, value) => set(id, value) }
-    this
-  }
+  def set[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Env =
+    set(id, enc(value))
 
   def push: Env =
     Env(Scope.create :: scopes)
@@ -47,5 +44,8 @@ final case class Env(scopes: List[Scope]) {
 
 object Env {
   def create: Env =
-    Env(List(Scope(Map())))
+    create(Scope.create)
+
+  def create(scope: Scope): Env =
+    Env(List(scope))
 }
