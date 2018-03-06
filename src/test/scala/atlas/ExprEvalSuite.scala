@@ -8,7 +8,7 @@ object ExprEvalSuite extends SimpleTestSuite {
   test("constant") {
     assertSuccess(
       expr"true",
-      Env.empty,
+      Env.create,
       true
     )
   }
@@ -16,7 +16,7 @@ object ExprEvalSuite extends SimpleTestSuite {
   test("infix") {
     assertSuccess(
       expr"1 + 2 + 3",
-      Env.empty,
+      Env.create,
       6
     )
   }
@@ -24,7 +24,7 @@ object ExprEvalSuite extends SimpleTestSuite {
   test("variable reference") {
     assertSuccess(
       expr"foo",
-      Env.empty.set("foo", true),
+      Env.create.set("foo", true),
       true
     )
   }
@@ -32,7 +32,7 @@ object ExprEvalSuite extends SimpleTestSuite {
   test("variable not in env") {
     assertFailure(
       expr"foo",
-      Env.empty,
+      Env.create,
       Eval.Error("Not in scope: foo")
     )
   }
@@ -42,7 +42,7 @@ object ExprEvalSuite extends SimpleTestSuite {
       add(mul(a, b), mul(4, 5))
       """
 
-    val env = Env.empty
+    val env = Env.create
      .set("add", (a: Int, b: Int) => a + b)
      .set("mul", (a: Int, b: Int) => a * b)
      .set("a", 2)
@@ -56,16 +56,41 @@ object ExprEvalSuite extends SimpleTestSuite {
   test("lexical scoping") {
     val code = expr"""
       do
-        let a = 1
+        let a = 123
         let bound = () -> a
-        let a = 2
-        bound()
+        do
+          let a = 321
+          bound()
+        end
       end
       """
 
-    val env = Env.empty
+    val env = Env.create
 
-    val expected = 1
+    val expected = 123
+
+    assertSuccess(code, env, expected)
+  }
+
+  test("object literals") {
+    import io.circe._
+    import io.circe.syntax._
+
+    val code = expr"""
+      {
+        foo: 1 + 1,
+        bar: 'a' + 'b',
+        baz: [ 1 + 2, 3 + 4]
+      }
+      """
+
+    val env = Env.create
+
+    val expected = Json.obj(
+      "foo" -> 2.asJson,
+      "bar" -> "ab".asJson,
+      "baz" -> List(3, 7).asJson
+    )
 
     assertSuccess(code, env, expected)
   }

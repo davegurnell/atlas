@@ -11,30 +11,37 @@ object Eval {
   type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
 
   def apply(prog: Prog, env: Env, ref: Ref = Ref("main")): Either[Error, Value] =
-    evalTopLevel(prog, ref).value.runA(env).value
+    evalProg(prog, ref).value.runA(env).value
 
   def apply(expr: Expr, env: Env): Either[Error, Value] =
     evalExpr(expr).value.runA(env).value
 
-  def evalTopLevel(prog: Prog, ref: Ref): Step[Value] =
-    for {
-      _   <- evalStmts(prog.stmts)
-      ans <- evalExpr(ref)
-    } yield ans
+  def evalProg(prog: Prog, ref: Ref): Step[Value] =
+    evalBlock(Block(prog.stmts, ref))
+
+  def evalBlock(block: Block): Step[Value] =
+    pushScope {
+      for {
+        _    <- evalStmts(block.stmts)
+        ans  <- evalExpr(block.expr)
+      } yield ans
+    }
 
   def evalStmts(stmts: List[Stmt]): Step[Unit] =
-    stmts.foldLeft(pure(()))((a, b) => a.flatMap(_ => evalStmt(b)))
+    stmts.foldLeft(pure(())) { (a, b) =>
+      a.flatMap(_ => evalStmt(b))
+    }
 
   def evalStmt(stmt: Stmt): Step[Unit] =
     stmt match {
-      case stmt: Defn => evalDefn(stmt)
+      case defn: Defn => evalDefn(defn)
       case expr: Expr => evalExpr(expr).map(_ => ())
     }
 
   def evalDefn(defn: Defn): Step[Unit] =
     for {
       value <- evalExpr(defn.expr)
-      _     <- modifyScope(_.set(defn.ref.id, value))
+      _     <- inspectEnv(_.set(defn.ref.id, value))
     } yield ()
 
   def evalExpr(expr: Expr): Step[Value] =
@@ -50,7 +57,10 @@ object Eval {
     }
 
   def evalRef(ref: Ref): Step[Value] =
-    inspectScopeEither(_.get(ref.id).toRight(Error(s"Not in scope: ${ref.id}")))
+    for {
+      env   <- currentEnv
+      value <- env.get(ref.id).fold(fail[Value](s"Not in scope: ${ref.id}"))(pure)
+    } yield value
 
   def evalSelect(select: Select): Step[Value] =
     for {
@@ -68,17 +78,11 @@ object Eval {
       case expr: StringLiteral => pure(StringValue(expr.value))
       case expr: ArrayLiteral  => expr.items.traverse(evalExpr).map(ArrayValue)
       case expr: ObjectLiteral => expr.fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjectValue)
-      case expr: FuncLiteral  => evalFunc(expr)
+      case expr: FuncLiteral   => evalFunc(expr)
     }
 
   def evalFunc(func: FuncLiteral): Step[Value] =
-    inspectScope(env => BoundFunc(func, env) : Value)
-
-  def evalBlock(block: Block): Step[Value] =
-    for {
-      _   <- evalStmts(block.stmts)
-      ans <- evalExpr(block.expr)
-    } yield ans
+    inspectEnv(env => Closure(func, env) : Value)
 
   def evalCond(cond: Cond): Step[Value] =
     for {
@@ -108,32 +112,24 @@ object Eval {
 
   def evalApplyInternal(func: Value, args: List[Value]): Step[Value] =
     func match {
-      case bound  : BoundFunc  => applyBoundFunc(bound, args)
-      case native : NativeFunc => applyNativeFunc(native, args)
-      case value  : DataValue  => fail(s"Cannot call non-function: $value")
+      case closure : Closure    => applyClosure(closure, args)
+      case native  : NativeFunc => applyNativeFunc(native, args)
+      case value   : DataValue  => fail(s"Cannot call non-function: $value")
     }
 
-  def applyBoundFunc(bound: BoundFunc, args: List[Value]): Step[Value] =
-    for {
-      origScope <- currentScope
-      _         <- checkArity(bound.func.args.length, args.length)
-      _         <- replaceScope(bound.env.setAll(bound.func.args.map(_.id).zip(args)))
-      result    <- evalExpr(bound.func.body)
-      _         <- replaceScope(origScope)
-    } yield result
+  def applyClosure(closure: Closure, args: List[Value]): Step[Value] =
+    replaceEnv(closure.env) {
+      pushScope {
+        for {
+          env <- currentEnv
+          _    = env.setAll(closure.func.args.map(_.id).zip(args))
+          ans <- evalExpr(closure.func.body)
+        } yield ans
+      }
+    }
 
   def applyNativeFunc(native: NativeFunc, args: List[Value]): Step[Value] =
-    for {
-      _      <- checkArity(native.arity, args.length)
-      result <- pureEither(native.func(args).leftMap(Error))
-    } yield result
-
-  def checkArity(arity: Int, args: Int): Step[Unit] =
-    if(arity == args) {
-      pure(())
-    } else {
-      fail(s"Arity mismatch: called $arity function with $args parameters")
-    }
+    pureEither(native.func(args).leftMap(Error))
 
   def selectValue(value: Value, id: String): Step[Value] =
     value match {
@@ -158,18 +154,30 @@ object Eval {
   def fail[A](msg: String): Step[A] =
     EitherT(State[Env, Either[Error, A]](env => (env, Left(Error(msg)))))
 
-  def inspectScope[A](func: Env => A): Step[A] =
+  def inspectEnv[A](func: Env => A): Step[A] =
     EitherT(State[Env, Either[Error, A]](env => (env, Right(func(env)))))
 
-  def inspectScopeEither[A](func: Env => Either[Error, A]): Step[A] =
+  def inspectEnvEither[A](func: Env => Either[Error, A]): Step[A] =
     EitherT(State[Env, Either[Error, A]](env => (env, func(env))))
 
-  val currentScope: Step[Env] =
+  val currentEnv: Step[Env] =
     EitherT(State[Env, Either[Error, Env]](env => (env, Right(env))))
 
-  def modifyScope(f: Env => Env): Step[Unit] =
+  def modifyEnv(f: Env => Env): Step[Unit] =
     EitherT(State[Env, Either[Error, Unit]](env => (f(env), Right(()))))
 
-  def replaceScope(env: Env): Step[Unit] =
-    modifyScope(_ => env)
+  def replaceEnv[A](env: Env)(body: Step[A]): Step[A] =
+    for {
+      env0 <- currentEnv
+      _    <- modifyEnv(_ => env)
+      ans  <- body
+      _    <- modifyEnv(_ => env0)
+    } yield ans
+
+  def pushScope[A](body: Step[A]): Step[A] =
+    for {
+      _   <- modifyEnv(_.push)
+      ans <- body
+      _   <- modifyEnv(_.pop)
+    } yield ans
 }
