@@ -214,12 +214,13 @@ val aProgram: Ast.Expr =
   """
 ```
 
-Syntax errors result in a Scala compilation error.
+Syntax errors raised by the macros
+result in a Scala compilation error.
 
 You can alternatively use
 the `Parser.expr` or `Parser.prog` methods
-to parse a regular Scala string.
-Parsing at runtime results in an `Either`:
+to parse a regular Scala string:
+Syntax errors using the parser result in an `Either`:
 
 ```scala
 val anotherExpression: Either[Parser.Error, Ast.Expr] =
