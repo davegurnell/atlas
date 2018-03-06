@@ -48,4 +48,11 @@ object Env {
 
   def create(scope: Scope): Env =
     Env(List(scope))
+
+  def basic: Env =
+    Env.create
+      .set("map", NativeFunc((func: Value => Value, list: List[Value]) => list.map(func)))
+      .set("flatMap", NativeFunc((func: Value => List[Value], list: List[Value]) => list.flatMap(func)))
+      .set("filter", NativeFunc((func: Value => Boolean, list: List[Value]) => list.filter(func)))
+      .set("flatten", NativeFunc((list: List[List[Value]]) => list.flatten))
 }

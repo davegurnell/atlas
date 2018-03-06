@@ -12,8 +12,8 @@ object Parser {
   def expr(code: String): Either[Error, Expr] =
     parse(parsers.exprToEnd, code)
 
-  def stmt(code: String): Either[Error, Stmt] =
-    parse(parsers.stmtToEnd, code)
+  // def stmt(code: String): Either[Error, Stmt] =
+  //   parse(parsers.stmtToEnd, code)
 
   def prog(code: String): Either[Error, Block] =
     parse(parsers.progToEnd, code)
@@ -32,17 +32,8 @@ object Parser {
 trait AllParsers {
   import Ast._
 
-  val letKw = "let"
-  val doKw = "do"
-  val endKw = "end"
-  val ifKw = "if"
-  val thenKw = "then"
-  val elseKw = "else"
-  val falseKw = "false"
-  val trueKw = "true"
-  val nullKw = "null"
-
-  val kws = List(letKw, doKw, endKw, ifKw, thenKw, elseKw, falseKw, trueKw, nullKw)
+  val alpha: Parser[Unit] =
+    P(CharIn("_$", 'a' to 'z', 'A' to 'Z'))
 
   val digit: Parser[Unit] =
     P(CharIn('0' to '9'))
@@ -51,7 +42,7 @@ trait AllParsers {
     P(CharIn('0' to '9', 'a' to 'f', 'A' to 'F'))
 
   val identStart: Parser[Unit] =
-    P(CharIn("_$", '0' to '9', 'a' to 'z', 'A' to 'Z'))
+    P(alpha)
 
   val identCont: Parser[Unit] =
     P(identStart | digit)
@@ -62,20 +53,33 @@ trait AllParsers {
   val whitespace: Parser[Unit] =
     P(" " | "\t")
 
-  val nl: Parser[Unit] =
-    P(whitespace.rep ~ newline ~ (whitespace | newline).rep)
-
-  val ws: Parser[Unit] =
-    P((whitespace | newline).rep)
-
   val comment: Parser[Unit] =
-    P("#" ~ CharsWhile(_ != '\n', min = 0))
+    P("#" ~ CharsWhile(_ != '\n', min = 0) ~ &(newline | End))
 
   val escape: Parser[Unit] =
     P("\\" ~ ((!(newline | hexDigit) ~ AnyChar) | (hexDigit.rep(min = 1, max = 6) ~ whitespace.?)))
 
+  val nl: Parser[Unit] =
+    P(whitespace.rep ~ comment.? ~ newline ~ (whitespace | newline).rep)
+
+  val ws: Parser[Unit] =
+    P((whitespace | comment | newline).rep)
+
+  val letKw = P("let" ~ !identCont)
+  val doKw = P("do" ~ !identCont)
+  val endKw = P("end" ~ !identCont)
+  val ifKw = P("if" ~ !identCont)
+  val thenKw = P("then" ~ !identCont)
+  val elseKw = P("else" ~ !identCont)
+  val falseKw = P("false" ~ !identCont)
+  val trueKw = P("true" ~ !identCont)
+  val nullKw = P("null" ~ !identCont)
+
   val keyword: Parser[Unit] =
-    P(kws.map(kw => P(kw ~ !identCont)).reduceLeft(_ | _))
+    P(letKw | doKw | endKw | ifKw | thenKw | elseKw | falseKw | trueKw | nullKw)
+
+  val ident: Parser[String] =
+    P(!keyword ~ identStart ~ identCont.rep).!
 
   // In increasing order of precedence:
   val infixOps: List[Parser[InfixOp]] = {
@@ -128,9 +132,6 @@ trait AllParsers {
     val singleQuoted = quoted("\"")
     P(doubleQuoted | singleQuoted)
   }
-
-  val ident: Parser[String] =
-    P((identStart ~ identCont.rep ~ !identCont).!.filter(ident => !kws.contains(ident)))
 
   def ref(p: Parser[Unit]): Parser[Ref] =
     P(p.!.map(Ref))

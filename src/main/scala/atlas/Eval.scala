@@ -10,7 +10,7 @@ object Eval {
 
   type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
 
-  def apply(expr: Expr, env: Env): Either[Error, Value] =
+  def apply(expr: Expr, env: Env = Env.create): Either[Error, Value] =
     evalExpr(expr).value.runA(env).value
 
   def evalBlock(block: Block): Step[Value] =

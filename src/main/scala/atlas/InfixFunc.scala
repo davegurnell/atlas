@@ -15,7 +15,7 @@ object InfixFunc {
     NativeFunc((a: Double, b: Double) => a * b)
 
   val div: NativeFunc =
-    NativeFunc((a: Int, b: Int) => a / b) orElse
+    NativeFunc((a: Int, b: Int) => 1.0 * a / b) orElse
     NativeFunc((a: Double, b: Double) => a / b)
 
   val and: NativeFunc =

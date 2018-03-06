@@ -48,6 +48,68 @@ object ProgEvalSuite extends SimpleTestSuite {
     assertSuccess(prog, env, expected)
   }
 
+  test("map, filter, flatten") {
+    val prog = prog"""
+      let inBounds = n ->
+        n > 1 && n < 20
+
+      let double = n ->
+        [ n, n * 2 ]
+
+      let values =
+        [1, 5, 7]
+
+      filter(inBounds, flatten(map(double, values)))
+      """
+    val env = Env.basic
+    val expected = List(2, 5, 10, 7, 14)
+
+    assertSuccess(prog, env, expected)
+  }
+
+  test("comments") {
+    val prog = prog"""
+      # Comment
+      let# Comment
+      double# Comment
+      =# Comment
+      n# Comment
+      -># Comment
+      n# Comment
+      *# Comment
+      2# Comment
+      double# Comment
+      (# Comment
+      21# Comment
+      )# Comment
+      # Comment
+      """
+    val env = Env.create
+    val expected = 42
+
+    assertSuccess(prog, env, expected)
+  }
+
+  test("native functions") {
+    val prog = prog"""average(10, 5)"""
+    val env = Env.create
+      .set("average", NativeFunc((a: Double, b: Double) => (a + b) / 2))
+    val expected = 7.5
+
+    assertSuccess(prog, env, expected)
+  }
+
+  test("native functions with exceptions") {
+    this.ignore()
+
+    val prog = prog"""average(10, 5)"""
+    val env = Env.create
+      .set("average", NativeFunc((a: Double, b: Double) => ???))
+    val expected = 7.5
+
+    assertSuccess(prog, env, expected)
+  }
+
   def assertSuccess[A](prog: Ast.Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =
     assertEquals(Eval(prog, env).flatMap(dec.apply), Right(expected))
 

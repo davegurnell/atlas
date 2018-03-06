@@ -27,7 +27,7 @@ class Macros(val c: Context) {
               toTree(value)
 
             case failure: Parsed.Failure =>
-              c.abort(c.enclosingPosition, s"Error parsing atlas code:\n${failure.extra.traced}")
+              c.abort(c.enclosingPosition, s"Error parsing atlas code: $failure\n${failure.extra.traced}")
           }
       }
     }

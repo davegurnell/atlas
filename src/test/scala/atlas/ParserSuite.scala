@@ -71,7 +71,8 @@ object TokenParserSuite extends SimpleTestSuite with AllParsers with ParserSuite
 
     assert.complete("true", "true")
     assert.complete("false", "false")
-    assert.partial("truefalse", "true", 4)
+    assert.partial("true false", "true", 4)
+    assert.failure("truefalse", 0)
     assert.failure("maybe", 0)
   }
 
@@ -117,7 +118,7 @@ object TokenParserSuite extends SimpleTestSuite with AllParsers with ParserSuite
     object assert extends Assertions(ident)
 
     assert.complete("dave", "dave")
-    assert.failure("if", 0)
+    assert.failure("if", 2)
     assert.complete("ifdave", "ifdave")
     assert.partial("dave was here", "dave", 4)
   }
@@ -142,6 +143,7 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   test("number") {
     assert.complete("123", IntLiteral(123))
     assert.complete("123.456", DoubleLiteral(123.456))
+    assert.partial("123 . 456", IntLiteral(123), 3)
   }
 
   test("string") {
@@ -157,7 +159,15 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       ArrayLiteral(List(IntLiteral(1), Infix(Add, IntLiteral(2), IntLiteral(3)), IntLiteral(4))))
 
     assert.complete(
+      "[1,2+3,4]",
+      ArrayLiteral(List(IntLiteral(1), Infix(Add, IntLiteral(2), IntLiteral(3)), IntLiteral(4))))
+
+    assert.complete(
       "[ null , [ true && false ] , false ]",
+      ArrayLiteral(List(NullLiteral, ArrayLiteral(List(Infix(And, TrueLiteral, FalseLiteral))), FalseLiteral)))
+
+    assert.complete(
+      "[null,[true&&false],false]",
       ArrayLiteral(List(NullLiteral, ArrayLiteral(List(Infix(And, TrueLiteral, FalseLiteral))), FalseLiteral)))
   }
 
@@ -170,8 +180,11 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         "baz" -> Infix(And, TrueLiteral, FalseLiteral))))
 
     assert.complete(
-      "[ null , [ true ] , false ]",
-      ArrayLiteral(List(NullLiteral, ArrayLiteral(List(TrueLiteral)), FalseLiteral)))
+      "{foo:null,\"'bar'\":1+2,baz:true&&false}",
+      ObjectLiteral(List(
+        "foo" -> NullLiteral,
+        "'bar'" -> Infix(Add, IntLiteral(1), IntLiteral(2)),
+        "baz" -> Infix(And, TrueLiteral, FalseLiteral))))
   }
 
   test("ref") {
@@ -189,6 +202,17 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         Ref("c")))
 
     assert.complete(
+      "ifathenbelsec",
+      Ref("ifathenbelsec"))
+
+    assert.complete(
+      "if(a)then(b)else(c)",
+      Cond(
+        Ref("a"),
+        Ref("b"),
+        Ref("c")))
+
+    assert.complete(
       "if a > b then c + d else e + f",
       Cond(
         Infix(Gt, Ref("a"), Ref("b")),
@@ -200,9 +224,14 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete(
       "add ( a , b , c )",
       Apply(Ref("add"), List(Ref("a"), Ref("b"), Ref("c"))))
+
+    assert.complete(
+      "add(a,b,c)",
+      Apply(Ref("add"), List(Ref("a"), Ref("b"), Ref("c"))))
   }
 
   test("paren") {
+    assert.complete("( a )", Ref("a"))
     assert.complete("(a)", Ref("a"))
   }
 
@@ -232,6 +261,19 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete("a - b", Infix(Sub, Ref("a"), Ref("b")))
     assert.complete("a * b", Infix(Mul, Ref("a"), Ref("b")))
     assert.complete("a / b", Infix(Div, Ref("a"), Ref("b")))
+
+    assert.complete("a||b", Infix(Or, Ref("a"), Ref("b")))
+    assert.complete("a&&b", Infix(And, Ref("a"), Ref("b")))
+    assert.complete("a==b", Infix(Eq, Ref("a"), Ref("b")))
+    assert.complete("a!=b", Infix(Ne, Ref("a"), Ref("b")))
+    assert.complete("a>b", Infix(Gt, Ref("a"), Ref("b")))
+    assert.complete("a<b", Infix(Lt, Ref("a"), Ref("b")))
+    assert.complete("a>=b", Infix(Gte, Ref("a"), Ref("b")))
+    assert.complete("a<=b", Infix(Lte, Ref("a"), Ref("b")))
+    assert.complete("a+b", Infix(Add, Ref("a"), Ref("b")))
+    assert.complete("a-b", Infix(Sub, Ref("a"), Ref("b")))
+    assert.complete("a*b", Infix(Mul, Ref("a"), Ref("b")))
+    assert.complete("a/b", Infix(Div, Ref("a"), Ref("b")))
 
     assert.complete(
       "a + b + c",
@@ -323,7 +365,7 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         Ref("c")))
 
     assert.complete(
-      "a.b + c.d",
+      "a.b+c.d",
       Infix(
         Add,
         Select(Ref("a"), Ref("b")),
@@ -334,6 +376,10 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete(
       "do a end",
       Block(Nil, Ref("a")))
+
+    assert.complete(
+      "doaend",
+      Ref("doaend"))
 
     assert.complete(
       i"""do a
@@ -367,6 +413,12 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   test("func") {
     assert.complete(
       "( a, b ) -> a + b",
+      FuncLiteral(
+        List(Ref("a"), Ref("b")),
+        Infix(Add, Ref("a"), Ref("b"))))
+
+    assert.complete(
+      "(a,b)->a+b",
       FuncLiteral(
         List(Ref("a"), Ref("b")),
         Infix(Add, Ref("a"), Ref("b"))))
