@@ -1,7 +1,7 @@
 enablePlugins(spray.boilerplate.BoilerplatePlugin)
 
 name         := "atlas"
-organization := "com.davegurnell"
+organization := "io.cartographer"
 version      := "0.1.0"
 scalaVersion := "2.12.4"
 
