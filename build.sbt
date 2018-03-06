@@ -5,6 +5,8 @@ organization := "io.cartographer"
 version      := "0.1.0"
 scalaVersion := "2.12.4"
 
+licenses += ("Apache-2.0", url("http://apache.org/licenses/LICENSE-2.0"))
+
 scalacOptions ++= Seq(
   "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
   "-encoding", "utf-8",                // Specify character encoding used by source files.
