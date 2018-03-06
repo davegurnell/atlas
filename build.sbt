@@ -68,3 +68,23 @@ libraryDependencies ++= Seq(
 )
 
 testFrameworks += new TestFramework("minitest.runner.Framework")
+
+publishTo := sonatypePublishTo.value
+
+pomExtra in Global := {
+  <url>https://github.com/cartographerio/atlas</url>
+  <scm>
+    <connection>scm:git:github.com/cartographerio/atlas</connection>
+    <developerConnection>scm:git:git@github.com:cartographerio/atlas</developerConnection>
+    <url>github.com/cartographerio/atlas</url>
+  </scm>
+  <developers>
+    <developer>
+      <id>davegurnell</id>
+      <name>Dave Gurnell</name>
+      <url>http://davegurnell.com</url>
+      <organization>Cartographer</organization>
+      <organizationUrl>http://cartographer.io</organizationUrl>
+    </developer>
+  </developers>
+}
