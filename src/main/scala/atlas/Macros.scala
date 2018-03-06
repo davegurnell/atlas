@@ -14,7 +14,7 @@ class Macros(val c: Context) {
     macroImpl[Ast.Stmt](Parser.parsers.stmtToEnd, args, toTree)
 
   def progMacro(args: c.Tree *): c.Tree =
-    macroImpl[Ast.Prog](Parser.parsers.progToEnd, args, toTree)
+    macroImpl[Ast.Block](Parser.parsers.progToEnd, args, toTree)
 
   private def macroImpl[A](parser: Parser[A], args: Seq[c.Tree], toTree: A => c.Tree): c.Tree = {
     if(args.nonEmpty) {
@@ -27,7 +27,7 @@ class Macros(val c: Context) {
               toTree(value)
 
             case failure: Parsed.Failure =>
-              c.abort(c.enclosingPosition, s"Error parsing atlas code: ${failure.toString}")
+              c.abort(c.enclosingPosition, s"Error parsing atlas code:\n${failure.extra.traced}")
           }
       }
     }
@@ -119,10 +119,4 @@ class Macros(val c: Context) {
     val (name, expr) = field
     q"($name, ${toTree(expr)})"
   }
-
-  private def toTree(prog: Ast.Prog): c.Tree =
-    prog match {
-      case Ast.Prog(stmts) => q"_root_.atlas.Ast.TopLevel(${stmts.map(toTree)})"
-    }
-
 }

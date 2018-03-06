@@ -7,7 +7,7 @@ object Parser {
 
   object parsers extends AllParsers
 
-  case class Error(message: String, index: Int)
+  case class Error(failure: Parsed.Failure)
 
   def expr(code: String): Either[Error, Expr] =
     parse(parsers.exprToEnd, code)
@@ -15,13 +15,13 @@ object Parser {
   def stmt(code: String): Either[Error, Stmt] =
     parse(parsers.stmtToEnd, code)
 
-  def prog(code: String): Either[Error, Prog] =
+  def prog(code: String): Either[Error, Block] =
     parse(parsers.progToEnd, code)
 
   private def parse[A](parser: Parser[A], code: String): Either[Error, A] = {
     parser.parse(code) match {
       case failure: Parsed.Failure =>
-        Left(Error(failure.msg, failure.index))
+        Left(Error(failure))
 
       case Parsed.Success(value, _) =>
         Right(value)
@@ -62,10 +62,7 @@ trait AllParsers {
   val whitespace: Parser[Unit] =
     P(" " | "\t")
 
-  val ws0: Parser[Unit] =
-    P(whitespace.rep)
-
-  val ws1: Parser[Unit] =
+  val nl: Parser[Unit] =
     P(whitespace.rep ~ newline ~ (whitespace | newline).rep)
 
   val ws: Parser[Unit] =
@@ -78,7 +75,7 @@ trait AllParsers {
     P("\\" ~ ((!(newline | hexDigit) ~ AnyChar) | (hexDigit.rep(min = 1, max = 6) ~ whitespace.?)))
 
   val keyword: Parser[Unit] =
-    P(kws.map(P(_)).reduceLeft(_ | _))
+    P(kws.map(kw => P(kw ~ !identCont)).reduceLeft(_ | _))
 
   // In increasing order of precedence:
   val infixOps: List[Parser[InfixOp]] = {
@@ -133,121 +130,12 @@ trait AllParsers {
   }
 
   val ident: Parser[String] =
-    P((identStart ~ identCont.rep).!.filter(ident => !kws.contains(ident)))
+    P((identStart ~ identCont.rep ~ !identCont).!.filter(ident => !kws.contains(ident)))
 
   def ref(p: Parser[Unit]): Parser[Ref] =
     P(p.!.map(Ref))
 
-  val ref: Parser[Ref] =
-    P(ident.map(Ref))
-
-  def createInfix(op: Parser[InfixOp], sub: Parser[Expr]): Parser[Expr] =
-    P(sub ~ (ws ~ op ~ ws ~ sub).rep).map {
-      case (head, tail) =>
-        tail.foldLeft(head) { (a, pair) =>
-          pair match {
-            case (op, b) => Infix(op, a, b)
-          }
-        }
-    }
-
-  def createPrefix(op: Parser[PrefixOp], sub: Parser[Expr]): Parser[Expr] =
-    P(op.? ~ ws ~ sub)
-      .map { case (op, arg) => op.fold(arg)(Prefix(_, arg)) }
-
-  val select: Parser[Expr] =
-    P((ref | paren) ~ (ws ~ "." ~ ws ~ ref).rep)
-      .map { case (head, tail) => tail.foldLeft(head)(Select) }
-
-  val func: Parser[Expr] = {
-    val parenFunc =
-      P("(" ~ ws ~ ref.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~ expr)
-        .map { case (args, expr) => FuncLiteral(args.toList, expr) }
-
-    val noParenFunc =
-      P(ref ~ ws ~ "->" ~ ws ~ expr)
-        .map { case (arg, expr) => FuncLiteral(List(arg), expr) }
-
-    P(parenFunc | noParenFunc)
-  }
-
-  val nullExpr: Parser[Expr] =
-    P(nullKw).map(_ => NullLiteral)
-
-  val trueExpr: Parser[Expr] =
-    P(trueKw).map(_ => TrueLiteral)
-
-  val falseExpr: Parser[Expr] =
-    P(falseKw).map(_ => FalseLiteral)
-
-  val int: Parser[Expr] =
-    P(intToken).map(_.toInt).map(IntLiteral)
-
-  val double: Parser[Expr] =
-    P(doubleToken).map(_.toDouble).map(DoubleLiteral)
-
-  val str: Parser[Expr] =
-    P(stringToken).map(StringLiteral)
-
-  val arr: Parser[Expr] =
-    P("[" ~/ ws ~ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/).map(_.toList).map(ArrayLiteral)
-
-  val obj: Parser[Expr] = {
-    val field: Parser[(String, Expr)] =
-      P((ident | stringToken) ~ ws ~/ ":" ~ ws ~/ expr)
-    P("{" ~/ ws ~ field.rep(sep = ws ~ "," ~ ws.~/) ~ ws ~ "}".~/).map(_.toList).map(ObjectLiteral)
-  }
-
-  val js: P[Expr] =
-    P(nullExpr | trueExpr | falseExpr | double | int | str | arr | obj)
-
-  val literal: Parser[Expr] =
-    P(func | js)
-
-  val paren: Parser[Expr] =
-    P("(" ~ ws ~ expr ~ ws ~ ")")
-
-  val prefix: Parser[Expr] =
-    P(createPrefix(prefixOp, paren | literal | select))
-
-  val infix: Parser[Expr] =
-    P(infixOps.foldRight(prefix)(createInfix))
-
-  val cond: Parser[Expr] =
-    P(ifKw ~ ws ~ expr ~ ws ~ thenKw ~ ws ~ expr ~ ws ~ elseKw ~ ws ~ expr)
-      .map { case (test, ifTrue, ifFalse) => Cond(test, ifTrue, ifFalse) }
-
-  val call: Parser[Expr] =
-    P(ident ~ ws ~ "(" ~/ ws ~ expr.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")")
-      .map { case (name, args) => Apply(Ref(name), args.toList) }
-
-  val blockBodyExpr: Parser[(Seq[Stmt], Expr)] =
-    P(expr ~ ws ~ endKw.~/)
-      .map(e => (Seq.empty[Stmt], e))
-
-  val blockBodyStmt: Parser[(Seq[Stmt], Expr)] =
-    P(stmt ~ ws1 ~ blockBody)
-      .map { case (s, (ss, e)) => (s +: ss, e) }
-
-  val blockBody: Parser[(Seq[Stmt], Expr)] =
-    P(blockBodyExpr | blockBodyStmt)
-
-  val block: Parser[Expr] =
-    P(doKw ~/ ws ~ blockBody)
-      .map { case (stmts, expr) => Block(stmts.toList, expr) }
-
-  val expr: Parser[Expr] =
-    P(block | cond | call | infix)
-
-  val defn: Parser[Defn] =
-    P(letKw ~ ws ~/ ref ~ ws ~ "=" ~ ws ~/ expr)
-      .map { case (ref, expr) => Defn(ref, expr) }
-
-  val stmt: Parser[Stmt] =
-    P(defn | expr)
-
-  val prog: Parser[Prog] =
-    P(stmt.rep(sep = ws1)).map(stmts => Prog(stmts.toList))
+  // -----
 
   def toEnd[A](parser: Parser[A]): Parser[A] =
     P(ws ~ parser ~ ws ~ End)
@@ -258,6 +146,169 @@ trait AllParsers {
   val stmtToEnd: Parser[Stmt] =
     P(toEnd(stmt))
 
-  val progToEnd: Parser[Prog] =
+  val progToEnd: Parser[Block] =
     P(toEnd(prog))
+
+  // -----
+
+  val prog: Parser[Block] =
+    P(stmt.rep(sep = nl)).map { stmts =>
+      stmts.last match {
+        case expr: Expr => Block(stmts.init.toList, expr)
+        case defn: Defn => Block(stmts.toList, NullLiteral)
+      }
+    }
+
+  // -----
+
+  val stmt: Parser[Stmt] =
+    P(defn | expr)
+
+  // -----
+
+  val defn: Parser[Defn] =
+    P(letKw ~ ws ~/ ref ~ ws ~ "=" ~ ws ~/ expr)
+      .map { case (ref, expr) => Defn(ref, expr) }
+
+  // -----
+
+  val expr: Parser[Expr] =
+    P(block)
+
+  // -----
+
+  val blockBodyExpr: Parser[(Seq[Stmt], Expr)] =
+    P(expr ~ ws ~ endKw.~/)
+      .map(e => (Seq.empty[Stmt], e))
+
+  val blockBodyStmt: Parser[(Seq[Stmt], Expr)] =
+    P(stmt ~ nl ~ blockBody)
+      .map { case (s, (ss, e)) => (s +: ss, e) }
+
+  val blockBody: Parser[(Seq[Stmt], Expr)] =
+    P(blockBodyExpr | blockBodyStmt)
+
+  val blockHit: Parser[Expr] =
+    P(doKw ~ ws ~/ blockBody)
+      .map { case (stmts, expr) => Block(stmts.toList, expr) }
+
+  val block: Parser[Expr] =
+    P(blockHit | cond)
+
+  // -----
+
+  val condHit: Parser[Expr] =
+    P(ifKw ~ ws ~ expr ~ ws ~ thenKw ~ ws ~ expr ~ ws ~ elseKw ~ ws ~ expr)
+      .map { case (test, ifTrue, ifFalse) => Cond(test, ifTrue, ifFalse) }
+
+  val cond: Parser[Expr] =
+    P(condHit | infix)
+
+  // -----
+
+  def createInfix(op: Parser[InfixOp], subExpr: Parser[Expr]): Parser[Expr] =
+    P(subExpr ~ (ws ~ op ~ ws ~ subExpr).rep).map {
+      case (head, tail) =>
+        tail.foldLeft(head) { (a, pair) =>
+          val (op, b) = pair
+          Infix(op, a, b)
+        }
+    }
+
+  val infix: Parser[Expr] =
+    P(infixOps.foldRight(prefix)(createInfix))
+
+  // -----
+
+  val prefixHit: Parser[Expr] =
+    P(prefixOp ~ ws ~ prefix)
+      .map { case (op, arg) => Prefix(op, arg) }
+
+  val prefix: Parser[Expr] =
+    P(prefixHit | select)
+
+  // -----
+
+  val select: Parser[Expr] =
+    P(apply ~ (ws ~ "." ~ ws ~ ref).rep)
+      .map { case (head, tail) => tail.foldLeft(head)(Select) }
+
+  // -----
+
+  val applyHit: Parser[Expr] =
+    P(ident ~ ws ~ "(" ~/ ws ~ expr.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")")
+      .map { case (name, args) => Apply(Ref(name), args.toList) }
+
+  val apply: Parser[Expr] =
+    P(applyHit | func)
+
+  // -----
+
+  val parenFuncHit: Parser[Expr] =
+    P("(" ~ ws ~ ref.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (args, expr) => FuncLiteral(args.toList, expr) }
+
+  val noParenFuncHit: Parser[Expr] =
+    P(ref ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (arg, expr) => FuncLiteral(List(arg), expr) }
+
+  val func: Parser[Expr] =
+    P(parenFuncHit | noParenFuncHit | obj)
+
+  // -----
+
+  val field: Parser[(String, Expr)] =
+    P((ident | stringToken) ~ ws ~/ ":" ~ ws ~/ expr)
+
+  val objHit: Parser[Expr] =
+    P("{" ~ ws ~/ field.rep(sep = ws ~ "," ~ ws.~/) ~ ws ~ "}".~/)
+      .map(_.toList)
+      .map(ObjectLiteral)
+
+  val obj: Parser[Expr] =
+    P(objHit | arr)
+
+  // -----
+
+  val arrHit: Parser[Expr] =
+    P("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/)
+      .map(_.toList)
+      .map(ArrayLiteral)
+
+  val arr: Parser[Expr] =
+    P(arrHit | paren)
+
+  // -----
+
+  val parenHit: Parser[Expr] =
+    P("(" ~ ws ~ expr ~ ws ~ ")")
+
+  val paren: Parser[Expr] =
+    P(parenHit | atom)
+
+  // -----
+
+  val atom: Parser[Expr] =
+    P(str | double | int | trueExpr | falseExpr | nullExpr | ref)
+
+  val str: Parser[Expr] =
+    P(stringToken).map(StringLiteral)
+
+  val double: Parser[Expr] =
+    P(doubleToken).map(_.toDouble).map(DoubleLiteral)
+
+  val int: Parser[Expr] =
+    P(intToken).map(_.toInt).map(IntLiteral)
+
+  val trueExpr: Parser[Expr] =
+    P(trueKw).map(_ => TrueLiteral)
+
+  val falseExpr: Parser[Expr] =
+    P(falseKw).map(_ => FalseLiteral)
+
+  val nullExpr: Parser[Expr] =
+    P(nullKw).map(_ => NullLiteral)
+
+  val ref: Parser[Ref] =
+    P(ident.map(Ref))
 }

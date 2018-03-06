@@ -48,22 +48,6 @@ object UnitParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete(" \n \n \n ", ())
   }
 
-  test("ws0") {
-    object assert extends Assertions(ws0)
-
-    assert.complete(" \t \t ", ())
-    assert.partial(" \n \n ", (), 1)
-    assert.partial(" \n \n \n ", (), 1)
-  }
-
-  test("ws1") {
-    object assert extends Assertions(ws1)
-
-    assert.failure(" \t \t ", 5)
-    assert.complete(" \n \n ", ())
-    assert.complete(" \n \n \n ", ())
-  }
-
   test("comment") {
     object assert extends Assertions(comment)
 

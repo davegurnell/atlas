@@ -10,14 +10,8 @@ object Eval {
 
   type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
 
-  def apply(prog: Prog, env: Env, ref: Ref = Ref("main")): Either[Error, Value] =
-    evalProg(prog, ref).value.runA(env).value
-
   def apply(expr: Expr, env: Env): Either[Error, Value] =
     evalExpr(expr).value.runA(env).value
-
-  def evalProg(prog: Prog, ref: Ref): Step[Value] =
-    evalBlock(Block(prog.stmts, ref))
 
   def evalBlock(block: Block): Step[Value] =
     pushScope {
