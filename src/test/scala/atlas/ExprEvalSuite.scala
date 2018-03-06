@@ -1,47 +1,48 @@
 package atlas
 
 import minitest._
+import syntax._
 import unindent._
 
 object ExprEvalSuite extends SimpleTestSuite {
   test("constant") {
     assertSuccess(
-      "true",
-      Env.empty,
+      expr"true",
+      Env.create,
       true
     )
   }
 
   test("infix") {
     assertSuccess(
-      "1 + 2 + 3",
-      Env.empty,
+      expr"1 + 2 + 3",
+      Env.create,
       6
     )
   }
 
   test("variable reference") {
     assertSuccess(
-      "foo",
-      Env.empty.set("foo", true),
+      expr"foo",
+      Env.create.set("foo", true),
       true
     )
   }
 
   test("variable not in env") {
     assertFailure(
-      "foo",
-      Env.empty,
+      expr"foo",
+      Env.create,
       Eval.Error("Not in scope: foo")
     )
   }
 
   test("function application") {
-    val code = i"""
+    val code = expr"""
       add(mul(a, b), mul(4, 5))
       """
 
-    val env = Env.empty
+    val env = Env.create
      .set("add", (a: Int, b: Int) => a + b)
      .set("mul", (a: Int, b: Int) => a * b)
      .set("a", 2)
@@ -53,37 +54,50 @@ object ExprEvalSuite extends SimpleTestSuite {
   }
 
   test("lexical scoping") {
-    val code = i"""
+    val code = expr"""
       do
-        let a = 1
+        let a = 123
         let bound = () -> a
-        let a = 2
-        bound()
+        do
+          let a = 321
+          bound()
+        end
       end
       """
 
-    val env = Env.empty
+    val env = Env.create
 
-    val expected = 1
+    val expected = 123
 
     assertSuccess(code, env, expected)
   }
 
-  def assertSuccess[A](code: String, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit = {
-    Parser.expr(code) match {
-      case Right(expr) =>
-        assertEquals(Eval(expr, env), Right(enc(expected)))
-      case Left(error) =>
-        fail("Could not parse expression: " + error)
-    }
+  test("object literals") {
+    import io.circe._
+    import io.circe.syntax._
+
+    val code = expr"""
+      {
+        foo: 1 + 1,
+        bar: 'a' + 'b',
+        baz: [ 1 + 2, 3 + 4]
+      }
+      """
+
+    val env = Env.create
+
+    val expected = Json.obj(
+      "foo" -> 2.asJson,
+      "bar" -> "ab".asJson,
+      "baz" -> List(3, 7).asJson
+    )
+
+    assertSuccess(code, env, expected)
   }
 
-  def assertFailure(code: String, env: Env, expected: Eval.Error): Unit = {
-    Parser.expr(code) match {
-      case Right(expr) =>
-        assertEquals(Eval(expr, env), Left(expected))
-      case Left(error) =>
-        fail("Could not parse expression: " + error)
-    }
-  }
+  def assertSuccess[A](expr: Ast.Expr, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit =
+    assertEquals(Eval(expr, env), Right(enc(expected)))
+
+  def assertFailure(expr: Ast.Expr, env: Env, expected: Eval.Error): Unit =
+    assertEquals(Eval(expr, env), Left(expected))
 }

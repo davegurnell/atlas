@@ -16,17 +16,15 @@ sealed abstract class BooleanValue extends DataValue
 case object TrueValue extends BooleanValue
 case object FalseValue extends BooleanValue
 
-sealed abstract class FuncValue(val arity: Int) extends Value
+sealed abstract class FuncValue extends Value
+final case class Closure(func: FuncLiteral, env: Env) extends FuncValue {
+  override def toString: String =
+    s"Closure($func, ${env.scopes.length})"
+}
 
-final case class BoundFunc(func: FuncLiteral, env: Env) extends FuncValue(func.args.length)
-
-final case class NativeFunc(override val arity: Int, func: List[Value] => Either[String, Value]) extends FuncValue(arity) {
+final case class NativeFunc(func: List[Value] => Either[String, Value]) extends FuncValue {
   def orElse(that: NativeFunc): NativeFunc =
-    if(this.arity == that.arity) {
-      NativeFunc(this.arity, values => this.func(values).fold(_ => that.func(values), Right.apply))
-    } else {
-      ???
-    }
+    NativeFunc(values => this.func(values).fold(_ => that.func(values), Right.apply))
 }
 
 object NativeFunc extends NativeFuncBoilerplate

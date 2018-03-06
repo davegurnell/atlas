@@ -1,9 +1,11 @@
 enablePlugins(spray.boilerplate.BoilerplatePlugin)
 
 name         := "atlas"
-organization := "com.davegurnell"
+organization := "io.cartographer"
 version      := "0.1.0"
 scalaVersion := "2.12.4"
+
+licenses += ("Apache-2.0", url("http://apache.org/licenses/LICENSE-2.0"))
 
 scalacOptions ++= Seq(
   "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
@@ -68,3 +70,23 @@ libraryDependencies ++= Seq(
 )
 
 testFrameworks += new TestFramework("minitest.runner.Framework")
+
+publishTo := sonatypePublishTo.value
+
+pomExtra in Global := {
+  <url>https://github.com/cartographerio/atlas</url>
+  <scm>
+    <connection>scm:git:github.com/cartographerio/atlas</connection>
+    <developerConnection>scm:git:git@github.com:cartographerio/atlas</developerConnection>
+    <url>github.com/cartographerio/atlas</url>
+  </scm>
+  <developers>
+    <developer>
+      <id>davegurnell</id>
+      <name>Dave Gurnell</name>
+      <url>http://davegurnell.com</url>
+      <organization>Cartographer</organization>
+      <organizationUrl>http://cartographer.io</organizationUrl>
+    </developer>
+  </developers>
+}

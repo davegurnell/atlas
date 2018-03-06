@@ -1,0 +1,35 @@
+package atlas
+
+import cats.implicits._
+
+trait ValueDecoderBoilerplate {
+  self: ValueDecoderFunctions =>
+
+  [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] =
+    pure {
+      case closure: Closure =>
+        Right { ([#arg1: A1#]) =>
+          Eval.applyClosure(closure, List([#enc1(arg1)#]))
+            .value
+            .runA(Env.create)
+            .value
+            .leftMap(_.text)
+            .flatMap(dec.apply)
+            .right
+            .get
+        }
+
+      case NativeFunc(func) =>
+        Right { ([#arg1: A1#]) =>
+          func(List([#enc1(arg1)#]))
+            .flatMap(dec.apply)
+            .right
+            .get
+        }
+
+      case value =>
+        Left(s"Could not decode function: $value")
+    }#
+
+  ]
+}

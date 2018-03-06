@@ -29,7 +29,10 @@ trait ValueEncoderInstances {
   implicit def valueEncoder: ValueEncoder[Value] =
     pure(identity)
 
-  implicit def circeEncoder[A](implicit dec: Encoder[A]): ValueEncoder[A] =
+  implicit def listEncoder[A](implicit enc: ValueEncoder[A]): ValueEncoder[List[A]] =
+    pure(list => ArrayValue(list.map(enc.apply)))
+
+  implicit def circeEncoder[A](implicit enc: Encoder[A]): ValueEncoder[A] =
     pure { arg =>
       def toValue(json: Json): Value =
         json.fold(

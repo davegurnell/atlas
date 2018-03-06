@@ -1,8 +1,6 @@
 package atlas
 
 import cats.implicits._
-import io.circe.{Decoder, Json}
-import io.circe.syntax._
 
 trait ValueDecoder[A] {
   def apply(value: Value): Either[String, A]
@@ -10,6 +8,7 @@ trait ValueDecoder[A] {
 
 object ValueDecoder extends ValueDecoderFunctions
   with ValueDecoderInstances
+  with ValueDecoderBoilerplate
 
 trait ValueDecoderFunctions {
   def apply[A](implicit instance: ValueDecoder[A]): ValueDecoder[A] =
@@ -28,6 +27,14 @@ trait ValueDecoderInstances {
   implicit def valueDecoder: ValueDecoder[Value] =
     pure(_.asRight)
 
+  implicit def listDecoder[A](implicit dec: ValueDecoder[A]): ValueDecoder[List[A]] =
+    pure {
+      case ArrayValue(values) => values.traverse(dec.apply)
+      case value              => Left(s"Could not decode list: $value")
+    }
+
+  import io.circe.{Decoder, Json}
+  import io.circe.syntax._
   implicit def circeDecoder[A](implicit dec: Decoder[A]): ValueDecoder[A] =
     pure { value =>
       def toJson(value: Value): Either[String, Json] =
