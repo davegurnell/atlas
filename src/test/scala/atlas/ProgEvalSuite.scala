@@ -104,7 +104,7 @@ object ProgEvalSuite extends SimpleTestSuite {
 
     val prog = prog"""average(10, 5)"""
     val env = Env.create
-      .set("average", NativeFunc((a: Double, b: Double) => ???))
+      .set("average", NativeFunc((a: Double, b: Double) => { if(a > b) ??? ; 0 }))
     val expected = 7.5
 
     assertSuccess(prog, env, expected)
