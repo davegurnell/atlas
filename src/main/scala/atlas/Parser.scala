@@ -12,10 +12,10 @@ object Parser {
   def expr(code: String): Either[Error, Expr] =
     parse(parsers.exprToEnd, code)
 
-  // def stmt(code: String): Either[Error, Stmt] =
-  //   parse(parsers.stmtToEnd, code)
+  def stmt(code: String): Either[Error, Stmt] =
+    parse(parsers.stmtToEnd, code)
 
-  def prog(code: String): Either[Error, Block] =
+  def prog(code: String): Either[Error, Expr] =
     parse(parsers.progToEnd, code)
 
   private def parse[A](parser: Parser[A], code: String): Either[Error, A] = {
@@ -31,6 +31,7 @@ object Parser {
 
 trait AllParsers {
   import Ast._
+  import Ast.Literal._
 
   val alpha: Parser[Unit] =
     P(CharIn("_$", 'a' to 'z', 'A' to 'Z'))
@@ -65,15 +66,32 @@ trait AllParsers {
   val ws: Parser[Unit] =
     P((whitespace | comment | newline).rep)
 
-  val letKw = P("let" ~ !identCont)
-  val doKw = P("do" ~ !identCont)
-  val endKw = P("end" ~ !identCont)
-  val ifKw = P("if" ~ !identCont)
-  val thenKw = P("then" ~ !identCont)
-  val elseKw = P("else" ~ !identCont)
-  val falseKw = P("false" ~ !identCont)
-  val trueKw = P("true" ~ !identCont)
-  val nullKw = P("null" ~ !identCont)
+  val letKw: Parser[Unit] =
+    P("let" ~ !identCont)
+
+  val doKw: Parser[Unit] =
+    P("do" ~ !identCont)
+
+  val endKw: Parser[Unit] =
+    P("end" ~ !identCont)
+
+  val ifKw: Parser[Unit] =
+    P("if" ~ !identCont)
+
+  val thenKw: Parser[Unit] =
+    P("then" ~ !identCont)
+
+  val elseKw: Parser[Unit] =
+    P("else" ~ !identCont)
+
+  val falseKw: Parser[Unit] =
+    P("false" ~ !identCont)
+
+  val trueKw: Parser[Unit] =
+    P("true" ~ !identCont)
+
+  val nullKw: Parser[Unit] =
+    P("null" ~ !identCont)
 
   val keyword: Parser[Unit] =
     P(letKw | doKw | endKw | ifKw | thenKw | elseKw | falseKw | trueKw | nullKw)
@@ -147,29 +165,36 @@ trait AllParsers {
   val stmtToEnd: Parser[Stmt] =
     P(toEnd(stmt))
 
-  val progToEnd: Parser[Block] =
+  val progToEnd: Parser[Expr] =
     P(toEnd(prog))
 
   // -----
 
-  val prog: Parser[Block] =
-    P(stmt.rep(sep = nl)).map { stmts =>
-      stmts.last match {
-        case expr: Expr => Block(stmts.init.toList, expr)
-        case defn: Defn => Block(stmts.toList, NullLiteral)
-      }
-    }
+  val progBodyExpr: Parser[(Seq[Stmt], Expr)] =
+    P(expr)
+      .map(e => (Seq.empty[Stmt], e))
+
+  val progBodyStmt: Parser[(Seq[Stmt], Expr)] =
+    P(stmt ~ nl ~ progBody)
+      .map { case (s, (ss, e)) => (s +: ss, e) }
+
+  val progBody: Parser[(Seq[Stmt], Expr)] =
+    P(progBodyExpr | progBodyStmt)
+
+  val prog: Parser[Expr] =
+    P(progBody)
+      .map { case (stmts, expr) => Block(stmts.toList, expr) }
 
   // -----
 
   val stmt: Parser[Stmt] =
-    P(defn | expr)
+    P(defn | expr.map(Ast.ExprStmt))
 
   // -----
 
-  val defn: Parser[Defn] =
-    P(letKw ~ ws ~/ ref ~ ws ~ "=" ~ ws ~/ expr)
-      .map { case (ref, expr) => Defn(ref, expr) }
+  val defn: Parser[DefnStmt] =
+    P(letKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ expr)
+      .map { case (name, expr) => DefnStmt(name, expr) }
 
   // -----
 
@@ -231,7 +256,7 @@ trait AllParsers {
   // -----
 
   val select: Parser[Expr] =
-    P(apply ~ (ws ~ "." ~ ws ~ ref).rep)
+    P(apply ~ (ws ~ "." ~ ws ~ ident).rep)
       .map { case (head, tail) => tail.foldLeft(head)(Select) }
 
   // -----
@@ -246,12 +271,12 @@ trait AllParsers {
   // -----
 
   val parenFuncHit: Parser[Expr] =
-    P("(" ~ ws ~ ref.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (args, expr) => FuncLiteral(args.toList, expr) }
+    P("(" ~ ws ~ ident.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (argNames, expr) => Func(argNames.toList, expr) }
 
   val noParenFuncHit: Parser[Expr] =
-    P(ref ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (arg, expr) => FuncLiteral(List(arg), expr) }
+    P(ident ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (argName, expr) => Func(List(argName), expr) }
 
   val func: Parser[Expr] =
     P(parenFuncHit | noParenFuncHit | obj)
@@ -264,7 +289,7 @@ trait AllParsers {
   val objHit: Parser[Expr] =
     P("{" ~ ws ~/ field.rep(sep = ws ~ "," ~ ws.~/) ~ ws ~ "}".~/)
       .map(_.toList)
-      .map(ObjectLiteral)
+      .map(Obj)
 
   val obj: Parser[Expr] =
     P(objHit | arr)
@@ -274,7 +299,7 @@ trait AllParsers {
   val arrHit: Parser[Expr] =
     P("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/)
       .map(_.toList)
-      .map(ArrayLiteral)
+      .map(Arr)
 
   val arr: Parser[Expr] =
     P(arrHit | paren)
@@ -293,22 +318,22 @@ trait AllParsers {
     P(str | double | int | trueExpr | falseExpr | nullExpr | ref)
 
   val str: Parser[Expr] =
-    P(stringToken).map(StringLiteral)
+    P(stringToken).map(Str)
 
   val double: Parser[Expr] =
-    P(doubleToken).map(_.toDouble).map(DoubleLiteral)
+    P(doubleToken).map(_.toDouble).map(Real)
 
   val int: Parser[Expr] =
-    P(intToken).map(_.toInt).map(IntLiteral)
+    P(intToken).map(_.toInt).map(Intr)
 
   val trueExpr: Parser[Expr] =
-    P(trueKw).map(_ => TrueLiteral)
+    P(trueKw).map(_ => True)
 
   val falseExpr: Parser[Expr] =
-    P(falseKw).map(_ => FalseLiteral)
+    P(falseKw).map(_ => False)
 
   val nullExpr: Parser[Expr] =
-    P(nullKw).map(_ => NullLiteral)
+    P(nullKw).map(_ => Null)
 
   val ref: Parser[Ref] =
     P(ident.map(Ref))

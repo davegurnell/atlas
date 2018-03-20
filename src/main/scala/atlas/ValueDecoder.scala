@@ -24,30 +24,32 @@ trait ValueDecoderFunctions {
 trait ValueDecoderInstances {
   self: ValueDecoderFunctions =>
 
+  import Value._
+
   implicit def valueDecoder: ValueDecoder[Value] =
     pure(_.asRight)
 
   implicit def listDecoder[A](implicit dec: ValueDecoder[A]): ValueDecoder[List[A]] =
     pure {
-      case ArrayValue(values) => values.traverse(dec.apply)
-      case value              => Left(s"Could not decode list: $value")
+      case Arr(values) => values.traverse(dec.apply)
+      case value       => Left(s"Could not decode list: $value")
     }
 
   import io.circe.{Decoder, Json}
-  import io.circe.syntax._
+
   implicit def circeDecoder[A](implicit dec: Decoder[A]): ValueDecoder[A] =
     pure { value =>
       def toJson(value: Value): Either[String, Json] =
         value match {
-          case NullValue           => Right(Json.Null)
-          case TrueValue           => Right(Json.True)
-          case FalseValue          => Right(Json.False)
-          case IntValue(num)       => Right(Json.fromInt(num))
-          case DoubleValue(num)    => Json.fromDouble(num).toRight(s"Could not decode double: $num")
-          case StringValue(str)    => Right(Json.fromString(str))
-          case ArrayValue(items)   => items.traverse(toJson).map(Json.fromValues)
-          case ObjectValue(fields) => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
-          case value: FuncValue    => Left(s"Cannot decode function: $value")
+          case Null        => Right(Json.Null)
+          case True        => Right(Json.True)
+          case False       => Right(Json.False)
+          case Intr(num)   => Right(Json.fromInt(num))
+          case Real(num)   => Json.fromDouble(num).toRight(s"Could not decode double: $num")
+          case Str(str)    => Right(Json.fromString(str))
+          case Arr(items)  => items.traverse(toJson).map(Json.fromValues)
+          case Obj(fields) => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
+          case value: Func => Left(s"Cannot decode function: $value")
         }
 
       toJson(value).flatMap(_.as[A].leftMap(_.message))

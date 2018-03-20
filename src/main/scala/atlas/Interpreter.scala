@@ -3,8 +3,10 @@ package atlas
 import cats.data.{EitherT, State}
 import cats.implicits._
 
-object Eval {
+object Interpreter {
   import Ast._
+  import Ast.Literal._
+  import Value.{Data, Closure, Native}
 
   final case class Error(text: String)
 
@@ -28,14 +30,14 @@ object Eval {
 
   def evalStmt(stmt: Stmt): Step[Unit] =
     stmt match {
-      case defn: Defn => evalDefn(defn)
-      case expr: Expr => evalExpr(expr).map(_ => ())
+      case defn: DefnStmt => evalDefn(defn)
+      case stmt: ExprStmt => evalExpr(stmt.expr).map(_ => ())
     }
 
-  def evalDefn(defn: Defn): Step[Unit] =
+  def evalDefn(defn: DefnStmt): Step[Unit] =
     for {
       value <- evalExpr(defn.expr)
-      _     <- inspectEnv(_.scopes.head.destructiveSet(defn.ref.id, value))
+      _     <- inspectEnv(_.scopes.head.destructiveSet(defn.name, value))
     } yield ()
 
   def evalExpr(expr: Expr): Step[Value] =
@@ -59,23 +61,23 @@ object Eval {
   def evalSelect(select: Select): Step[Value] =
     for {
       value  <- evalExpr(select)
-      result <- selectValue(value, select.ref.id)
+      result <- selectValue(value, select.field)
     } yield result
 
   def evalLiteral(lit: Literal): Step[Value] =
     lit match {
-      case NullLiteral         => pure(NullValue)
-      case TrueLiteral         => pure(TrueValue)
-      case FalseLiteral        => pure(FalseValue)
-      case expr: IntLiteral    => pure(IntValue(expr.value))
-      case expr: DoubleLiteral => pure(DoubleValue(expr.value))
-      case expr: StringLiteral => pure(StringValue(expr.value))
-      case expr: ArrayLiteral  => expr.items.traverse(evalExpr).map(ArrayValue)
-      case expr: ObjectLiteral => expr.fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjectValue)
-      case expr: FuncLiteral   => evalFunc(expr)
+      case Null       => pure(Value.Null)
+      case True       => pure(Value.True)
+      case False      => pure(Value.False)
+      case expr: Intr => pure(Value.Intr(expr.value))
+      case expr: Real => pure(Value.Real(expr.value))
+      case expr: Str  => pure(Value.Str(expr.value))
+      case expr: Arr  => expr.items.traverse(evalExpr).map(Value.Arr)
+      case expr: Obj  => expr.fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(Value.Obj)
+      case expr: Func => evalFunc(expr)
     }
 
-  def evalFunc(func: FuncLiteral): Step[Value] =
+  def evalFunc(func: Func): Step[Value] =
     inspectEnv(env => Closure(func, env) : Value)
 
   def evalCond(cond: Cond): Step[Value] =
@@ -106,9 +108,9 @@ object Eval {
 
   def evalApplyInternal(func: Value, args: List[Value]): Step[Value] =
     func match {
-      case closure : Closure    => applyClosure(closure, args)
-      case native  : NativeFunc => applyNativeFunc(native, args)
-      case value   : DataValue  => fail(s"Cannot call non-function: $value")
+      case closure : Closure => applyClosure(closure, args)
+      case native  : Native  => applyNative(native, args)
+      case value   : Data    => fail(s"Cannot call non-function: $value")
     }
 
   def applyClosure(closure: Closure, args: List[Value]): Step[Value] =
@@ -116,18 +118,18 @@ object Eval {
       pushScope {
         for {
           env <- currentEnv
-          _    = env.scopes.head.destructiveSetAll(closure.func.args.map(_.id).zip(args))
+          _    = env.scopes.head.destructiveSetAll(closure.func.argNames.zip(args))
           ans <- evalExpr(closure.func.body)
         } yield ans
       }
     }
 
-  def applyNativeFunc(native: NativeFunc, args: List[Value]): Step[Value] =
+  def applyNative(native: Native, args: List[Value]): Step[Value] =
     pureEither(native.func(args).leftMap(Error))
 
   def selectValue(value: Value, id: String): Step[Value] =
     value match {
-      case ObjectValue(fields) =>
+      case Value.Obj(fields) =>
         pureEither(fields.collectFirst { case (n, v) if n == id => v } match {
           case Some(value) => Right(value)
           case None        => Left(Error(s"Field not found: $id"))

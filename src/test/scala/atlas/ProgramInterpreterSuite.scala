@@ -2,9 +2,8 @@ package atlas
 
 import minitest._
 import syntax._
-import unindent._
 
-object ProgEvalSuite extends SimpleTestSuite {
+object ProgramInterpreterSuite extends SimpleTestSuite {
   test("recursive odd/even") {
     val code = prog"""
       let even = n -> if n == 0 then true else odd(n - 1)
@@ -93,7 +92,7 @@ object ProgEvalSuite extends SimpleTestSuite {
   test("native functions") {
     val prog = prog"""average(10, 5)"""
     val env = Env.create
-      .set("average", NativeFunc((a: Double, b: Double) => (a + b) / 2))
+      .set("average", (a: Double, b: Double) => (a + b) / 2)
     val expected = 7.5
 
     assertSuccess(prog, env, expected)
@@ -104,15 +103,15 @@ object ProgEvalSuite extends SimpleTestSuite {
 
     val prog = prog"""average(10, 5)"""
     val env = Env.create
-      .set("average", NativeFunc((a: Double, b: Double) => { if(a > b) ??? ; 0 }))
+      .set("average", (a: Double, b: Double) => { if(a > b) ??? ; 0 })
     val expected = 7.5
 
     assertSuccess(prog, env, expected)
   }
 
   def assertSuccess[A](prog: Ast.Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =
-    assertEquals(Eval(prog, env).flatMap(dec.apply), Right(expected))
+    assertEquals(Interpreter(prog, env).flatMap(dec.apply), Right(expected))
 
-  def assertFailure(prog: Ast.Expr, env: Env, expected: Eval.Error): Unit =
-    assertEquals(Eval(prog, env), Left(expected))
+  def assertFailure(prog: Ast.Expr, env: Env, expected: Interpreter.Error): Unit =
+    assertEquals(Interpreter(prog, env), Left(expected))
 }

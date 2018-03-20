@@ -1,10 +1,9 @@
 package atlas
 
+import atlas.syntax._
 import minitest._
-import syntax._
-import unindent._
 
-object ExprEvalSuite extends SimpleTestSuite {
+object SimpleInterpreterSuite extends SimpleTestSuite {
   test("constant") {
     assertSuccess(
       expr"true",
@@ -33,7 +32,7 @@ object ExprEvalSuite extends SimpleTestSuite {
     assertFailure(
       expr"foo",
       Env.create,
-      Eval.Error("Not in scope: foo")
+      Interpreter.Error("Not in scope: foo")
     )
   }
 
@@ -96,8 +95,8 @@ object ExprEvalSuite extends SimpleTestSuite {
   }
 
   def assertSuccess[A](expr: Ast.Expr, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit =
-    assertEquals(Eval(expr, env), Right(enc(expected)))
+    assertEquals(Interpreter(expr, env), Right(enc(expected)))
 
-  def assertFailure(expr: Ast.Expr, env: Env, expected: Eval.Error): Unit =
-    assertEquals(Eval(expr, env), Left(expected))
+  def assertFailure(expr: Ast.Expr, env: Env, expected: Interpreter.Error): Unit =
+    assertEquals(Interpreter(expr, env), Left(expected))
 }

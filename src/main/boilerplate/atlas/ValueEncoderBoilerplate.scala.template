@@ -5,7 +5,7 @@ trait ValueEncoderBoilerplate {
 
   [#implicit def function1[[#A1#], R](implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): ValueEncoder[([#A1#]) => R] =
     pure { func =>
-      NativeFunc(values => for {
+      Value.Native(values => for {
         [#arg1 <- dec1(values(0))#
         ]
       } yield enc(func([#arg1#])))

@@ -7,9 +7,10 @@ trait ValueDecoderBoilerplate {
 
   [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] =
     pure {
-      case closure: Closure =>
+      case closure: Value.Closure =>
         Right { ([#arg1: A1#]) =>
-          Eval.applyClosure(closure, List([#enc1(arg1)#]))
+          Interpreter
+            .applyClosure(closure, List([#enc1(arg1)#]))
             .value
             .runA(Env.create)
             .value
@@ -19,7 +20,7 @@ trait ValueDecoderBoilerplate {
             .get
         }
 
-      case NativeFunc(func) =>
+      case Value.Native(func) =>
         Right { ([#arg1: A1#]) =>
           func(List([#enc1(arg1)#]))
             .flatMap(dec.apply)

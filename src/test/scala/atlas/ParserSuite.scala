@@ -128,63 +128,64 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   import PrefixOp._
   import InfixOp._
   import Ast._
+  import Ast.Literal._
 
   object assert extends Assertions(expr)
 
   test("null") {
-    assert.complete("null", NullLiteral)
+    assert.complete("null", Null)
   }
 
   test("boolean") {
-    assert.complete("true", TrueLiteral)
-    assert.complete("false", FalseLiteral)
+    assert.complete("true", True)
+    assert.complete("false", False)
   }
 
   test("number") {
-    assert.complete("123", IntLiteral(123))
-    assert.complete("123.456", DoubleLiteral(123.456))
-    assert.partial("123 . 456", IntLiteral(123), 3)
+    assert.complete("123", Intr(123))
+    assert.complete("123.456", Real(123.456))
+    assert.partial("123 . 456", Intr(123), 3)
   }
 
   test("string") {
-    assert.complete("'dave'", StringLiteral("dave"))
-    assert.complete("\"dave\"", StringLiteral("dave"))
-    assert.complete("'\"dave\"'", StringLiteral("\"dave\""))
-    assert.complete("\"'dave'\"", StringLiteral("'dave'"))
+    assert.complete("'dave'", Str("dave"))
+    assert.complete("\"dave\"", Str("dave"))
+    assert.complete("'\"dave\"'", Str("\"dave\""))
+    assert.complete("\"'dave'\"", Str("'dave'"))
   }
 
   test("array") {
     assert.complete(
       "[ 1, 2 + 3, 4 ]",
-      ArrayLiteral(List(IntLiteral(1), Infix(Add, IntLiteral(2), IntLiteral(3)), IntLiteral(4))))
+      Arr(List(Intr(1), Infix(Add, Intr(2), Intr(3)), Intr(4))))
 
     assert.complete(
       "[1,2+3,4]",
-      ArrayLiteral(List(IntLiteral(1), Infix(Add, IntLiteral(2), IntLiteral(3)), IntLiteral(4))))
+      Arr(List(Intr(1), Infix(Add, Intr(2), Intr(3)), Intr(4))))
 
     assert.complete(
       "[ null , [ true && false ] , false ]",
-      ArrayLiteral(List(NullLiteral, ArrayLiteral(List(Infix(And, TrueLiteral, FalseLiteral))), FalseLiteral)))
+      Arr(List(Null, Arr(List(Infix(And, True, False))), False)))
 
     assert.complete(
       "[null,[true&&false],false]",
-      ArrayLiteral(List(NullLiteral, ArrayLiteral(List(Infix(And, TrueLiteral, FalseLiteral))), FalseLiteral)))
+      Arr(List(Null, Arr(List(Infix(And, True, False))), False)))
   }
 
   test("object") {
     assert.complete(
       "{ foo : null , \"'bar'\" : 1 + 2 , baz : true && false}",
-      ObjectLiteral(List(
-        "foo" -> NullLiteral,
-        "'bar'" -> Infix(Add, IntLiteral(1), IntLiteral(2)),
-        "baz" -> Infix(And, TrueLiteral, FalseLiteral))))
+      Obj(List(
+        "foo" -> Null,
+        "'bar'" -> Infix(Add, Intr(1), Intr(2)),
+        "baz" -> Infix(And, True, False))))
 
     assert.complete(
       "{foo:null,\"'bar'\":1+2,baz:true&&false}",
-      ObjectLiteral(List(
-        "foo" -> NullLiteral,
-        "'bar'" -> Infix(Add, IntLiteral(1), IntLiteral(2)),
-        "baz" -> Infix(And, TrueLiteral, FalseLiteral))))
+      Obj(List(
+        "foo" -> Null,
+        "'bar'" -> Infix(Add, Intr(1), Intr(2)),
+        "baz" -> Infix(And, True, False))))
   }
 
   test("ref") {
@@ -356,20 +357,18 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   test("select") {
     assert.complete(
       "a . b",
-      Select(Ref("a"), Ref("b")))
+      Select(Ref("a"), "b"))
 
     assert.complete(
       "a.b.c",
-      Select(
-        Select(Ref("a"), Ref("b")),
-        Ref("c")))
+      Select(Select(Ref("a"), "b"), "c"))
 
     assert.complete(
       "a.b+c.d",
       Infix(
         Add,
-        Select(Ref("a"), Ref("b")),
-        Select(Ref("c"), Ref("d"))))
+        Select(Ref("a"), "b"),
+        Select(Ref("c"), "d")))
   }
 
   test("block") {
@@ -386,7 +385,7 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       b end
       """,
       Block(
-        List(Ref("a")),
+        List(ExprStmt(Ref("a"))),
         Ref("b")))
 
     assert.complete(
@@ -398,13 +397,17 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       end
       """,
       Block(
-        List(Ref("a"), Ref("b")),
+        List(
+          ExprStmt(Ref("a")),
+          ExprStmt(Ref("b"))),
         Ref("c")))
 
     assert.complete(
       "do;a;b;c;end",
       Block(
-        List(Ref("a"), Ref("b")),
+        List(
+          ExprStmt(Ref("a")),
+          ExprStmt(Ref("b"))),
         Ref("c")))
 
     assert.failure("do a b c end", 3)
@@ -413,63 +416,66 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   test("func") {
     assert.complete(
       "( a, b ) -> a + b",
-      FuncLiteral(
-        List(Ref("a"), Ref("b")),
+      Func(
+        List("a", "b"),
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
       "(a,b)->a+b",
-      FuncLiteral(
-        List(Ref("a"), Ref("b")),
+      Func(
+        List("a", "b"),
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
       "a -> b -> a + b",
-      FuncLiteral(
-        List(Ref("a")),
-        FuncLiteral(
-          List(Ref("b")),
+      Func(
+        List("a"),
+        Func(
+          List("b"),
           Infix(Add, Ref("a"), Ref("b")))))
 
     assert.complete(
       "a -> b -> a.c + b.d",
-      FuncLiteral(
-        List(Ref("a")),
-        FuncLiteral(
-          List(Ref("b")),
+      Func(
+        List("a"),
+        Func(
+          List("b"),
           Infix(Add,
-            Select(Ref("a"), Ref("c")),
-            Select(Ref("b"), Ref("d"))))))
+            Select(Ref("a"), "c"),
+            Select(Ref("b"), "d")))))
   }
 }
 
 object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
   import Ast._
-  import PrefixOp._
+  import Ast.Literal._
   import InfixOp._
 
   object assert extends Assertions(stmt)
 
   test("defn") {
-    assert.complete("let a = b", Defn(Ref("a"), Ref("b")))
+    assert.complete("let a = b", DefnStmt("a", Ref("b")))
 
-    assert.complete("let a = b -> c", Defn(
-      Ref("a"),
-      FuncLiteral(List(Ref("b")), Ref("c"))))
+    assert.complete("let a = b -> c", DefnStmt(
+      "a",
+      Func(List("b"), Ref("c"))))
 
     assert.complete(
       i"""
       let add = ( a, b ) -> a + b
       """,
-      Defn(
-        Ref("add"),
-        FuncLiteral(
-          List(Ref("a"), Ref("b")),
+      DefnStmt(
+        "add",
+        Func(
+          List("a", "b"),
           Infix(Add, Ref("a"), Ref("b")))))
   }
 
   test("expr") {
-    assert.complete("a + b", Infix(Add, Ref("a"), Ref("b")))
+    assert.complete(
+      "a + b",
+      ExprStmt(
+        Infix(Add, Ref("a"), Ref("b"))))
   }
 }
 

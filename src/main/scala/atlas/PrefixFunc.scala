@@ -1,18 +1,20 @@
 package atlas
 
 object PrefixFunc {
-  val pos: NativeFunc =
-    NativeFunc((a: Int) => a) orElse
-    NativeFunc((a: Double) => a)
+  import Value._
 
-  val neg: NativeFunc =
-    NativeFunc((a: Int) => -a) orElse
-    NativeFunc((a: Double) => -a)
+  val pos: Native =
+    native((a: Int) => a) orElse
+    native((a: Double) => a)
 
-  val not: NativeFunc =
-    NativeFunc((a: Boolean) => !a)
+  val neg: Native =
+    native((a: Int) => -a) orElse
+    native((a: Double) => -a)
 
-  def apply(op: PrefixOp): NativeFunc =
+  val not: Native =
+    native((a: Boolean) => !a)
+
+  def apply(op: PrefixOp): Native =
     op match {
       case PrefixOp.Pos => pos
       case PrefixOp.Neg => neg

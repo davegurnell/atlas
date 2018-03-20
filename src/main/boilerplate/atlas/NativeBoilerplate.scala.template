@@ -1,0 +1,27 @@
+package atlas
+
+trait NativeBoilerplate {
+  self: Value.type =>
+
+  [#implicit def native[[#A1#], R](func: ([#A1#]) => R)(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
+    Native { values =>
+      try {
+        for {
+          [#arg1 <- dec1(values(0))#
+          ]
+        } yield enc(func([#arg1#]))
+      } catch {
+        case exn: Exception =>
+          Left(s"Error in native function: ${exn.getMessage}")
+      }
+    }#
+  ]
+
+  [#implicit def nativeM[[#A1#], R](func: ([#A1#]) => Either[String, R])(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
+    Native(values => for {
+      [#arg1 <- dec1(values(0))#
+      ]
+      ans <- func([#arg1#])
+    } yield enc(ans))#
+  ]
+}
