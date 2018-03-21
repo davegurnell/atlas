@@ -4,7 +4,7 @@ final case class Scope(var bindings: Map[String, Value]) {
   def get(id: String): Option[Value] =
     bindings.collectFirst { case (`id`, value) => value }
 
-  def set[A](id: String, value: Value): Scope =
+  def set(id: String, value: Value): Scope =
     Scope(bindings + ((id, value)))
 
   def destructiveSet(id: String, value: Value): Unit =
@@ -29,11 +29,8 @@ final case class Env(scopes: List[Scope]) {
     loop(scopes)
   }
 
-  def set(id: String, value: Value): Env =
-    Env(scopes.head.set(id, value) :: scopes.tail)
-
   def set[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Env =
-    set(id, enc(value))
+    Env(scopes.head.set(id, enc(value)) :: scopes.tail)
 
   def push: Env =
     Env(Scope.create :: scopes)

@@ -99,14 +99,13 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
   }
 
   test("native functions with exceptions") {
-    this.ignore()
-
     val prog = prog"""average(10, 5)"""
+    val exn = new Exception("Badness")
     val env = Env.create
-      .set("average", (a: Double, b: Double) => { if(a > b) ??? ; 0 })
-    val expected = 7.5
+      .set("average", (a: Double, b: Double) => { if(a > b) throw exn ; 0 })
+    val expected = Interpreter.Error("Error in native function", Some(exn))
 
-    assertSuccess(prog, env, expected)
+    assertFailure(prog, env, expected)
   }
 
   def assertSuccess[A](prog: Ast.Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =

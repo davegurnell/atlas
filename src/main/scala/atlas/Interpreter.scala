@@ -8,12 +8,30 @@ object Interpreter {
   import Ast.Literal._
   import Value.{Data, Closure, Native}
 
-  final case class Error(text: String)
+  final case class Error(text: String, cause: Option[Exception] = None)
 
   type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
 
   def apply(expr: Expr, env: Env = Env.create): Either[Error, Value] =
     evalExpr(expr).value.runA(env).value
+
+  def evalExpr(expr: Expr): Step[Value] =
+    expr match {
+      case expr: Ref     => evalRef(expr)
+      case expr: Block   => evalBlock(expr)
+      case expr: Select  => evalSelect(expr)
+      case expr: Cond    => evalCond(expr)
+      case expr: Prefix  => evalPrefix(expr)
+      case expr: Infix   => evalInfix(expr)
+      case expr: Apply   => evalApply(expr)
+      case expr: Literal => evalLiteral(expr)
+    }
+
+  def evalRef(ref: Ref): Step[Value] =
+    for {
+      env   <- currentEnv
+      value <- env.get(ref.id).fold(fail[Value](s"Not in scope: ${ref.id}"))(pure)
+    } yield value
 
   def evalBlock(block: Block): Step[Value] =
     pushScope {
@@ -39,24 +57,6 @@ object Interpreter {
       value <- evalExpr(defn.expr)
       _     <- inspectEnv(_.scopes.head.destructiveSet(defn.name, value))
     } yield ()
-
-  def evalExpr(expr: Expr): Step[Value] =
-    expr match {
-      case expr: Ref     => evalRef(expr)
-      case expr: Literal => evalLiteral(expr)
-      case expr: Block   => evalBlock(expr)
-      case expr: Select  => evalSelect(expr)
-      case expr: Cond    => evalCond(expr)
-      case expr: Prefix  => evalPrefix(expr)
-      case expr: Infix   => evalInfix(expr)
-      case expr: Apply   => evalApply(expr)
-    }
-
-  def evalRef(ref: Ref): Step[Value] =
-    for {
-      env   <- currentEnv
-      value <- env.get(ref.id).fold(fail[Value](s"Not in scope: ${ref.id}"))(pure)
-    } yield value
 
   def evalSelect(select: Select): Step[Value] =
     for {
@@ -125,7 +125,7 @@ object Interpreter {
     }
 
   def applyNative(native: Native, args: List[Value]): Step[Value] =
-    pureEither(native.func(args).leftMap(Error))
+    pureEither(native.func(args))
 
   def selectValue(value: Value, id: String): Step[Value] =
     value match {
@@ -139,7 +139,7 @@ object Interpreter {
     }
 
   def parseAs[A](value: Value)(implicit dec: ValueDecoder[A]): Step[A] =
-    pureEither(dec(value).leftMap(Error))
+    pureEither(dec(value))
 
   def pureEither[A](either: Either[Error, A]): Step[A] =
     EitherT(State[Env, Either[Error, A]](env => (env, either)))

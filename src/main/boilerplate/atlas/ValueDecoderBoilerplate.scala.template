@@ -5,7 +5,7 @@ import cats.implicits._
 trait ValueDecoderBoilerplate {
   self: ValueDecoderFunctions =>
 
-  [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] =
+  [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] = {
     pure {
       case closure: Value.Closure =>
         Right { ([#arg1: A1#]) =>
@@ -20,17 +20,19 @@ trait ValueDecoderBoilerplate {
             .get
         }
 
-      case Value.Native(func) =>
+      case native: Value.Native =>
         Right { ([#arg1: A1#]) =>
-          func(List([#enc1(arg1)#]))
+          native
+            .func(List([#enc1(arg1)#]))
             .flatMap(dec.apply)
             .right
             .get
         }
 
       case value =>
-        Left(s"Could not decode function: $value")
-    }#
+        Left(Interpreter.Error(s"Could not decode function: $value"))
+    }
+  }#
 
   ]
 }

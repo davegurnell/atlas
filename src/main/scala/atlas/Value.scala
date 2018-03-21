@@ -21,7 +21,7 @@ object Value extends NativeBoilerplate {
     override def toString: String = s"Closure($func, ${env.scopes.length})"
   }
 
-  final case class Native(func: List[Value] => Either[String, Value]) extends Func {
+  final case class Native(func: List[Value] => Either[Interpreter.Error, Value]) extends Func {
     def orElse(that: Native): Native =
       Native(values => this.func(values).fold(_ => that.func(values), Right.apply))
   }

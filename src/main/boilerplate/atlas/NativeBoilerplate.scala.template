@@ -1,9 +1,11 @@
 package atlas
 
+import cats.implicits._
+
 trait NativeBoilerplate {
   self: Value.type =>
 
-  [#implicit def native[[#A1#], R](func: ([#A1#]) => R)(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
+  [#def native[[#A1#], R](func: ([#A1#]) => R)(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
     Native { values =>
       try {
         for {
@@ -12,16 +14,20 @@ trait NativeBoilerplate {
         } yield enc(func([#arg1#]))
       } catch {
         case exn: Exception =>
-          Left(s"Error in native function: ${exn.getMessage}")
+          Left(Interpreter.Error("Error in native function", Some(exn)))
       }
     }#
+
   ]
 
-  [#implicit def nativeM[[#A1#], R](func: ([#A1#]) => Either[String, R])(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
-    Native(values => for {
-      [#arg1 <- dec1(values(0))#
-      ]
-      ans <- func([#arg1#])
-    } yield enc(ans))#
+  [#def nativeM[[#A1#], R](func: ([#A1#]) => Either[Interpreter.Error, R])(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
+    Native { values =>
+      for {
+        [#arg1 <- dec1(values(0))#
+        ]
+        ans <- func([#arg1#])
+      } yield enc(ans)
+    }#
+
   ]
 }
