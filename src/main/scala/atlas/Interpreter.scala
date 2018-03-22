@@ -8,11 +8,9 @@ object Interpreter {
   import Ast.Literal._
   import Value.{Data, Closure, Native}
 
-  final case class Error(text: String, cause: Option[Exception] = None)
+  type Step[A] = EitherT[Lambda[X => State[Env, X]], RuntimeError, A]
 
-  type Step[A] = EitherT[Lambda[X => State[Env, X]], Error, A]
-
-  def apply(expr: Expr, env: Env = Env.create): Either[Error, Value] =
+  def apply(expr: Expr, env: Env = Env.create): Either[RuntimeError, Value] =
     evalExpr(expr).value.runA(env).value
 
   def evalExpr(expr: Expr): Step[Value] =
@@ -125,14 +123,14 @@ object Interpreter {
     }
 
   def applyNative(native: Native, args: List[Value]): Step[Value] =
-    pureEither(native.func(args))
+    native.func(args)
 
   def selectValue(value: Value, id: String): Step[Value] =
     value match {
       case Value.Obj(fields) =>
         pureEither(fields.collectFirst { case (n, v) if n == id => v } match {
           case Some(value) => Right(value)
-          case None        => Left(Error(s"Field not found: $id"))
+          case None        => Left(RuntimeError(s"Field not found: $id"))
         })
       case other =>
         fail(s"Could not select field '$id' from $other")
@@ -141,26 +139,26 @@ object Interpreter {
   def parseAs[A](value: Value)(implicit dec: ValueDecoder[A]): Step[A] =
     pureEither(dec(value))
 
-  def pureEither[A](either: Either[Error, A]): Step[A] =
-    EitherT(State[Env, Either[Error, A]](env => (env, either)))
+  def pureEither[A](either: Either[RuntimeError, A]): Step[A] =
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, either)))
 
   def pure[A](value: A): Step[A] =
     pureEither(Right(value))
 
-  def fail[A](msg: String): Step[A] =
-    EitherT(State[Env, Either[Error, A]](env => (env, Left(Error(msg)))))
+  def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Left(RuntimeError(msg, cause)))))
 
   def inspectEnv[A](func: Env => A): Step[A] =
-    EitherT(State[Env, Either[Error, A]](env => (env, Right(func(env)))))
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Right(func(env)))))
 
-  def inspectEnvEither[A](func: Env => Either[Error, A]): Step[A] =
-    EitherT(State[Env, Either[Error, A]](env => (env, func(env))))
+  def inspectEnvEither[A](func: Env => Either[RuntimeError, A]): Step[A] =
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, func(env))))
 
   val currentEnv: Step[Env] =
-    EitherT(State[Env, Either[Error, Env]](env => (env, Right(env))))
+    EitherT(State[Env, Either[RuntimeError, Env]](env => (env, Right(env))))
 
   def modifyEnv(f: Env => Env): Step[Unit] =
-    EitherT(State[Env, Either[Error, Unit]](env => (f(env), Right(()))))
+    EitherT(State[Env, Either[RuntimeError, Unit]](env => (f(env), Right(()))))
 
   def replaceEnv[A](env: Env)(body: Step[A]): Step[A] =
     for {

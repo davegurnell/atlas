@@ -103,7 +103,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
     val exn = new Exception("Badness")
     val env = Env.create
       .set("average", (a: Double, b: Double) => { if(a > b) throw exn ; 0 })
-    val expected = Interpreter.Error("Error in native function", Some(exn))
+    val expected = RuntimeError("Error in native function", Some(exn))
 
     assertFailure(prog, env, expected)
   }
@@ -111,6 +111,6 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
   def assertSuccess[A](prog: Ast.Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =
     assertEquals(Interpreter(prog, env).flatMap(dec.apply), Right(expected))
 
-  def assertFailure(prog: Ast.Expr, env: Env, expected: Interpreter.Error): Unit =
+  def assertFailure(prog: Ast.Expr, env: Env, expected: RuntimeError): Unit =
     assertEquals(Interpreter(prog, env), Left(expected))
 }

@@ -32,7 +32,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
     assertFailure(
       expr"foo",
       Env.create,
-      Interpreter.Error("Not in scope: foo")
+      RuntimeError("Not in scope: foo")
     )
   }
 
@@ -97,6 +97,6 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   def assertSuccess[A](expr: Ast.Expr, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit =
     assertEquals(Interpreter(expr, env), Right(enc(expected)))
 
-  def assertFailure(expr: Ast.Expr, env: Env, expected: Interpreter.Error): Unit =
+  def assertFailure(expr: Ast.Expr, env: Env, expected: RuntimeError): Unit =
     assertEquals(Interpreter(expr, env), Left(expected))
 }

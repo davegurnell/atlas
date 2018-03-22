@@ -7,7 +7,7 @@ object syntax {
   }
 
   implicit class ValueDecoderOps(value: Value) {
-    def as[A](implicit dec: ValueDecoder[A]): Either[Interpreter.Error, A] =
+    def as[A](implicit dec: ValueDecoder[A]): Either[RuntimeError, A] =
       dec(value)
   }
 

@@ -5,32 +5,27 @@ import cats.implicits._
 trait ValueDecoderBoilerplate {
   self: ValueDecoderFunctions =>
 
+  implicit class StepOps(step: Interpreter.Step[Value]) {
+    def unsafeUnpack[A](implicit dec: ValueDecoder[A]): A =
+      step.value.runA(Env.create).value.flatMap(dec.apply).right.get
+  }
+
   [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] = {
     pure {
       case closure: Value.Closure =>
         Right { ([#arg1: A1#]) =>
-          Interpreter
-            .applyClosure(closure, List([#enc1(arg1)#]))
-            .value
-            .runA(Env.create)
-            .value
-            .leftMap(_.text)
-            .flatMap(dec.apply)
-            .right
-            .get
+          val args = List([#enc1(arg1)#])
+          Interpreter.applyClosure(closure, args).unsafeUnpack[R]
         }
 
       case native: Value.Native =>
         Right { ([#arg1: A1#]) =>
-          native
-            .func(List([#enc1(arg1)#]))
-            .flatMap(dec.apply)
-            .right
-            .get
+          val args = List([#enc1(arg1)#])
+          native.func(args).unsafeUnpack[R]
         }
 
       case value =>
-        Left(Interpreter.Error(s"Could not decode function: $value"))
+        Left(RuntimeError(s"Could not decode function: $value"))
     }
   }#
 
