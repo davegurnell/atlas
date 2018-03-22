@@ -378,6 +378,23 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete(
       "a.b : Int",
       Cast(Select(Ref("a"), "b"), Type.Intr))
+
+    assert.complete(
+      "(do a end) : Int",
+      Cast(Block(Nil, Ref("a")), Type.Intr))
+
+    assert.complete(
+      "if a then b else c : Int",
+      Cond(Ref("a"), Ref("b"), Cast(Ref("c"), Type.Intr)))
+
+    assert.complete(
+      "(if a then b else c) : Int",
+      Cast(Cond(Ref("a"), Ref("b"), Ref("c")), Type.Intr))
+
+    assert.partial(
+      "do a end : Int",
+      Block(Nil, Ref("a")),
+      8)
   }
 
   test("select") {
@@ -444,34 +461,41 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       "( a, b ) -> a + b",
       Func(
         List(Arg("a"), Arg("b")),
+        None,
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
-      "( a , b : String ) -> a + b",
+      "( a , b : String ) : Int -> a + b",
       Func(
         List(Arg("a"), Arg("b", Some(Type.Str))),
+        Some(Type.Intr),
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
-      "(a:Int,b)->a+b",
+      "(a:Int,b):Real->a+b",
       Func(
         List(Arg("a", Some(Type.Intr)), Arg("b")),
+        Some(Type.Real),
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
-      "a: Int -> b -> a + b",
+      "a -> b -> a + b",
       Func(
-        List(Arg("a", Some(Type.Intr))),
+        List(Arg("a")),
+        None,
         Func(
           List(Arg("b")),
+          None,
           Infix(Add, Ref("a"), Ref("b")))))
 
     assert.complete(
       "a -> b -> a.c + b.d",
       Func(
         List(Arg("a")),
+        None,
         Func(
           List(Arg("b")),
+          None,
           Infix(Add,
             Select(Ref("a"), "c"),
             Select(Ref("b"), "d")))))
@@ -491,7 +515,10 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete("let a = b -> c", DefnStmt(
       "a",
       None,
-      Func(List(Arg("b")), Ref("c"))))
+      Func(
+        List(Arg("b")),
+        None,
+        Ref("c"))))
 
     assert.complete("let a: Int = b", DefnStmt(
       "a",
@@ -507,6 +534,7 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         None,
         Func(
           List(Arg("a"), Arg("b")),
+          None,
           Infix(Add, Ref("a"), Ref("b")))))
   }
 

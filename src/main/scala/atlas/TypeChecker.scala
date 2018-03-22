@@ -175,18 +175,34 @@ object TypeChecker {
 
   def literalType(expr: Literal): Step[Type] =
     expr match {
-      case Func(argNames, body) => ???
-      case Obj(fields)          => fields
-                                     .traverse { case (n, e) => exprType(e).map(t => Map(n -> t)) }
-                                     .map(ts => Type.Obj(ts.combineAll.toList))
-      case Arr(items)           => items
-                                     .traverse(exprType)
-                                     .map(_.combineAll)
-      case Str(value)           => pure(Type.Str)
-      case Intr(value)          => pure(Type.Intr)
-      case Real(value)          => pure(Type.Real)
-      case Null                 => pure(Type.Null)
-      case _: Bool              => pure(Type.Bool)
+      case expr: Func  => funcType(expr)
+      case Obj(fields) => fields
+                            .traverse { case (n, e) => exprType(e).map(t => Map(n -> t)) }
+                            .map(ts => Type.Obj(ts.combineAll.toList))
+      case Arr(items)  => items
+                            .traverse(exprType)
+                            .map(_.combineAll)
+      case Str(value)  => pure(Type.Str)
+      case Intr(value) => pure(Type.Intr)
+      case Real(value) => pure(Type.Real)
+      case Null        => pure(Type.Null)
+      case _: Bool     => pure(Type.Bool)
+    }
+
+  def funcType(func: Func): Step[Type] =
+    for {
+      argTypes <- func.args.traverse(argType)
+      exprType <- exprType(func.body)
+      resType  <- func.resultType match {
+                    case Some(tpe) => assertAssignable(tpe, exprType).map(_ => tpe)
+                    case _         => pure(exprType)
+                  }
+    } yield Type.Func(argTypes, resType)
+
+  def argType(arg: Arg): Step[Type] =
+    arg.tpe match {
+      case Some(tpe) => assignType(Ref(arg.name), tpe)
+      case None      => generateType(Ref(arg.name))
     }
 
   // Applying types to initial native environments:
@@ -244,14 +260,18 @@ object TypeChecker {
   def lookupType(expr: Expr): Step[Type] =
     currentEnv.flatMap { env =>
       env.get(expr) match {
-        case Some(tpe) =>
-          pure(tpe)
-
-        case None =>
-          val (tpe, newEnv) = env.gen
-          modifyEnv(_ => newEnv).map(_ => tpe)
+        case Some(tpe) => pure(tpe)
+        case None      => generateType(expr)
       }
     }
+
+  def assignType(expr: Expr, tpe: Type): Step[Type] =
+    modifyEnv(env => env.set(expr, tpe)).map(_ => tpe)
+
+  def generateType(expr: Expr): Step[Type] = {
+    val tpe = TypeEnv.gen
+    modifyEnv(env  => env.set(expr, tpe)).map(_ => tpe)
+  }
 
   def pushScope[A](body: Step[A]): Step[A] =
     for {

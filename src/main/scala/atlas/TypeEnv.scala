@@ -9,11 +9,6 @@ final case class TypeScope(var bindings: Map[Expr, Type], var variables: Set[Typ
   def set(expr: Expr, tpe: Type): TypeScope =
     TypeScope(bindings + ((expr, tpe)), variables)
 
-  def gen: (Type.Var, TypeScope) = {
-    val variable = TypeEnv.genVar
-    (variable, TypeScope(bindings, variables + variable))
-  }
-
   def destructiveSet(expr: Expr, tpe: Type): Unit =
     bindings = bindings + ((expr, tpe))
 
@@ -39,11 +34,6 @@ final case class TypeEnv(scopes: List[TypeScope]) {
   def set(expr: Expr, tpe: Type): TypeEnv =
     TypeEnv(scopes.head.set(expr, tpe) :: scopes.tail)
 
-  def gen: (Type.Var, TypeEnv) = {
-    val (variable, head) = scopes.head.gen
-    (variable, TypeEnv(head :: scopes.tail))
-  }
-
   def push: TypeEnv =
     TypeEnv(TypeScope.create :: scopes)
 
@@ -59,7 +49,7 @@ object TypeEnv {
     TypeEnv(List(scope))
 
   private var nextVar = 0
-  def genVar: Type.Var = {
+  def gen: Type.Var = {
     nextVar = nextVar + 1
     Type.Var(nextVar)
   }

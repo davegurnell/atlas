@@ -55,6 +55,10 @@ object SimpleTypeCheckerSuite extends SimpleTestSuite {
     assertFailure(expr"do let a = 1; let b = 'foo'; a + b end", InfixNotDefined(InfixOp.Add, Intr, Str))
   }
 
+  test("func") {
+    assertSuccess(expr"(a, b) -> a + b", Type.Null)
+  }
+
   test("native functions") {
     // TODO: This should be generic!
     val expected = Func(List(Func(List(Top), Top), Arr(Top)), Arr(Top))

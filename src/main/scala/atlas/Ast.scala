@@ -20,7 +20,7 @@ object Ast {
   object Literal {
     final case class Arg(name: String, tpe: Option[Type] = None)
 
-    final case class Func(args: List[Arg], body: Expr) extends Literal {
+    final case class Func(args: List[Arg], resultType: Option[Type], body: Expr) extends Literal {
       def argNames: List[String] = args.map(_.name)
       def argTypes: List[Option[Type]] = args.map(_.tpe)
       def arity: Int = args.length

@@ -332,12 +332,12 @@ trait AllParsers {
     P(argWithHint | argNoHint)
 
   val parenFuncHit: Parser[Expr] =
-    P("(" ~ ws ~ arg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (args, expr) => Func(args.toList, expr) }
+    P("(" ~ ws ~ arg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ (ws ~ ":" ~ ws ~ tpe).? ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (args, resType, expr) => Func(args.toList, resType, expr) }
 
   val noParenFuncHit: Parser[Expr] =
-    P(arg ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (arg, expr) => Func(List(arg), expr) }
+    P(ident ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (name, expr) => Func(List(Arg(name)), None, expr) }
 
   val func: Parser[Expr] =
     P(parenFuncHit | noParenFuncHit | obj)
