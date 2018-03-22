@@ -5,28 +5,37 @@ import cats.implicits._
 trait NativeBoilerplate {
   self: Value.type =>
 
-  [#def native[[#A1#], R](func: ([#A1#]) => R)(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
-    Native { values =>
-      for {
-        [#arg1 <- Interpreter.pureEither(dec1(values(0)))#
-        ]
-        ans <- try Interpreter.pure(enc(func([#arg1#]))) catch {
-                 case exn: Exception =>
-                   Interpreter.fail("Error in native function", Some(exn))
-               }
-      } yield ans
-    }#
+  [#def native[[#A1#], R](func: ([#A1#]) => R)(
+    implicit
+    [#argType1: TypeEncoder[A1],
+    argDec1: ValueDecoder[A1]#,
+    ],
+    resType: TypeEncoder[R],
+    resEnc: ValueEncoder[R]): Native =
+    Native(
+      Type.Func(List([#argType1.get#]), resType.get),
+      values => {
+        for {
+          [#arg1 <- Interpreter.pureEither(argDec1(values(0)))#
+          ]
+          ans <- Interpreter.tryCatch(resEnc(func([#arg1#])))
+        } yield ans
+      }
+    )#
 
   ]
 
-  [#def nativeM[[#A1#], R](func: ([#A1#]) => Interpreter.Step[R])(implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): Native =
-    Native { values =>
-      for {
-        [#arg1 <- Interpreter.pureEither(dec1(values(0)))#
-        ]
-        ans <- func([#arg1#])
-      } yield enc(ans)
-    }#
+  [#def nativeM[[#A1#], R](func: ([#A1#]) => Interpreter.Step[R])(implicit [#argType1: TypeEncoder[A1], argDec1: ValueDecoder[A1]#], resType: TypeEncoder[R], resEnc: ValueEncoder[R]): Native =
+    Native(
+      Type.Func(List([#argType1.get#]), resType.get),
+      values => {
+        for {
+          [#arg1 <- Interpreter.pureEither(argDec1(values(0)))#
+          ]
+          ans <- func([#arg1#])
+        } yield resEnc(ans)
+      }
+    )#
 
-  ]
+    ]
 }

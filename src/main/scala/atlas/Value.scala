@@ -3,7 +3,8 @@ package atlas
 import atlas.Ast._
 import cats.implicits._
 
-sealed abstract class Value extends Product with Serializable
+sealed abstract class Value extends Product with Serializable {
+}
 
 object Value extends NativeBoilerplate {
   sealed abstract class Data extends Value
@@ -22,8 +23,13 @@ object Value extends NativeBoilerplate {
     override def toString: String = s"Closure($func, ${env.scopes.length})"
   }
 
-  final case class Native(func: List[Value] => Interpreter.Step[Value]) extends Func {
+  final case class Native(tpe: Type, run: List[Value] => Interpreter.Step[Value]) extends Func {
     def orElse(that: Native): Native =
-      Native(values => this.func(values).leftFlatMap(_ => that.func(values)))
+      Native(
+        Type.Union(Set(this.tpe, that.tpe)),
+        values => {
+          this.run(values).leftFlatMap(_ => that.run(values))
+        }
+      )
   }
 }

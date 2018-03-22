@@ -21,7 +21,7 @@ trait ValueDecoderBoilerplate {
       case native: Value.Native =>
         Right { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
-          native.func(args).unsafeUnpack[R]
+          native.run(args).unsafeUnpack[R]
         }
 
       case value =>

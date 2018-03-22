@@ -354,6 +354,32 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         Prefix(Pos, Ref("b"))))
   }
 
+  test("cast") {
+    assert.complete(
+      "a : Int",
+      Cast(Ref("a"), Type.Intr))
+
+    assert.complete(
+      "a:Int",
+      Cast(Ref("a"), Type.Intr))
+
+    assert.complete(
+      "-a : Int",
+      Cast(Prefix(PrefixOp.Neg, Ref("a")), Type.Intr))
+
+    assert.complete(
+      "a + b : Int",
+      Infix(InfixOp.Add, Ref("a"), Cast(Ref("b"), Type.Intr)))
+
+    assert.complete(
+      "(a + b) : Int",
+      Cast(Infix(InfixOp.Add, Ref("a"), Ref("b")), Type.Intr))
+
+    assert.complete(
+      "a.b : Int",
+      Cast(Select(Ref("a"), "b"), Type.Intr))
+  }
+
   test("select") {
     assert.complete(
       "a . b",
@@ -417,29 +443,35 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete(
       "( a, b ) -> a + b",
       Func(
-        List("a", "b"),
+        List(Arg("a"), Arg("b")),
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
-      "(a,b)->a+b",
+      "( a , b : String ) -> a + b",
       Func(
-        List("a", "b"),
+        List(Arg("a"), Arg("b", Some(Type.Str))),
         Infix(Add, Ref("a"), Ref("b"))))
 
     assert.complete(
-      "a -> b -> a + b",
+      "(a:Int,b)->a+b",
       Func(
-        List("a"),
+        List(Arg("a", Some(Type.Intr)), Arg("b")),
+        Infix(Add, Ref("a"), Ref("b"))))
+
+    assert.complete(
+      "a: Int -> b -> a + b",
+      Func(
+        List(Arg("a", Some(Type.Intr))),
         Func(
-          List("b"),
+          List(Arg("b")),
           Infix(Add, Ref("a"), Ref("b")))))
 
     assert.complete(
       "a -> b -> a.c + b.d",
       Func(
-        List("a"),
+        List(Arg("a")),
         Func(
-          List("b"),
+          List(Arg("b")),
           Infix(Add,
             Select(Ref("a"), "c"),
             Select(Ref("b"), "d")))))
@@ -454,11 +486,17 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   object assert extends Assertions(stmt)
 
   test("defn") {
-    assert.complete("let a = b", DefnStmt("a", Ref("b")))
+    assert.complete("let a = b", DefnStmt("a", None, Ref("b")))
 
     assert.complete("let a = b -> c", DefnStmt(
       "a",
-      Func(List("b"), Ref("c"))))
+      None,
+      Func(List(Arg("b")), Ref("c"))))
+
+    assert.complete("let a: Int = b", DefnStmt(
+      "a",
+      Some(Type.Intr),
+      Ref("b")))
 
     assert.complete(
       i"""
@@ -466,8 +504,9 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       """,
       DefnStmt(
         "add",
+        None,
         Func(
-          List("a", "b"),
+          List(Arg("a"), Arg("b")),
           Infix(Add, Ref("a"), Ref("b")))))
   }
 

@@ -2,7 +2,7 @@ package atlas
 
 object Ast {
   sealed abstract class Stmt extends Product with Serializable
-  final case class DefnStmt(name: String, expr: Expr) extends Stmt
+  final case class DefnStmt(name: String, tpe: Option[Type], expr: Expr) extends Stmt
   final case class ExprStmt(expr: Expr) extends Stmt
 
   sealed abstract class Expr extends Product with Serializable
@@ -12,13 +12,18 @@ object Ast {
   final case class Cond(test: Expr, trueArm: Expr, falseArm: Expr) extends Expr
   final case class Infix(op: InfixOp, arg1: Expr, arg2: Expr) extends Expr
   final case class Prefix(op: PrefixOp, arg: Expr) extends Expr
+  final case class Cast(expr: Expr, asType: Type) extends Expr
   final case class Apply(func: Expr, args: List[Expr]) extends Expr
 
   sealed abstract class Literal extends Expr
 
   object Literal {
-    final case class Func(argNames: List[String], body: Expr) extends Literal {
-      def arity: Int = argNames.length
+    final case class Arg(name: String, tpe: Option[Type] = None)
+
+    final case class Func(args: List[Arg], body: Expr) extends Literal {
+      def argNames: List[String] = args.map(_.name)
+      def argTypes: List[Option[Type]] = args.map(_.tpe)
+      def arity: Int = args.length
     }
 
     sealed abstract class Data extends Literal

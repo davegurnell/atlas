@@ -21,6 +21,7 @@ object Interpreter {
       case expr: Cond    => evalCond(expr)
       case expr: Prefix  => evalPrefix(expr)
       case expr: Infix   => evalInfix(expr)
+      case expr: Cast    => evalCast(expr)
       case expr: Apply   => evalApply(expr)
       case expr: Literal => evalLiteral(expr)
     }
@@ -97,6 +98,9 @@ object Interpreter {
       ans  <- evalApplyInternal(InfixFunc(infix.op), List(arg1, arg2))
     } yield ans
 
+  def evalCast(cast: Cast): Step[Value] =
+    evalExpr(cast.expr)
+
   def evalApply(apply: Apply): Step[Value] =
     for {
       func <- evalExpr(apply.func)
@@ -123,7 +127,7 @@ object Interpreter {
     }
 
   def applyNative(native: Native, args: List[Value]): Step[Value] =
-    native.func(args)
+    native.run(args)
 
   def selectValue(value: Value, id: String): Step[Value] =
     value match {
@@ -144,6 +148,12 @@ object Interpreter {
 
   def pure[A](value: A): Step[A] =
     pureEither(Right(value))
+
+  def tryCatch[A](value: => A): Step[A] =
+   try pure(value) catch {
+     case exn: Exception =>
+       fail("Error in native function", Some(exn))
+   }
 
   def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
     EitherT(State[Env, Either[RuntimeError, A]](env => (env, Left(RuntimeError(msg, cause)))))

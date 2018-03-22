@@ -1,0 +1,11 @@
+package atlas
+
+trait TypeEncoderBoilerplate {
+  self: TypeEncoderFunctions =>
+
+  [#implicit def function1[[#A1#], R](implicit [#arg1: TypeEncoder[A1]#], res: TypeEncoder[R]): TypeEncoder[([#A1#]) => R] =
+    pure(Type.Func(List([#arg1.get#]), res.get))
+  #
+
+  ]
+}
