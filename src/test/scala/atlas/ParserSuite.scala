@@ -197,23 +197,23 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete("\"'dave'\"", StrExpr("'dave'"))
   }
 
-  // test("array") {
-  //   assert.complete(
-  //     "[ 1, 2 + 3, 4 ]",
-  //     ArrLit(List(IntExpr(1), InfixExpr(Add, IntExpr(2), IntExpr(3)), IntExpr(4))))
+  test("array") {
+    assert.complete(
+      "[ 1, 2 + 3, 4 ]",
+      ArrExpr(List(IntExpr(1), InfixExpr(Add, IntExpr(2), IntExpr(3)), IntExpr(4))))
 
-  //   assert.complete(
-  //     "[1,2+3,4]",
-  //     ArrLit(List(IntExpr(1), InfixExpr(Add, IntExpr(2), IntExpr(3)), IntExpr(4))))
+    assert.complete(
+      "[1,2+3,4]",
+      ArrExpr(List(IntExpr(1), InfixExpr(Add, IntExpr(2), IntExpr(3)), IntExpr(4))))
 
-  //   assert.complete(
-  //     "[ null , [ true && false ] , false ]",
-  //     ArrLit(List(NullExpr, ArrLit(List(InfixExpr(And, True, False))), False)))
+    assert.complete(
+      "[ null , [ true && false ] , false ]",
+      ArrExpr(List(NullExpr, ArrExpr(List(InfixExpr(And, BoolExpr(true), BoolExpr(false)))), BoolExpr(false))))
 
-  //   assert.complete(
-  //     "[null,[true&&false],false]",
-  //     ArrLit(List(NullExpr, ArrLit(List(InfixExpr(And, True, False))), False)))
-  // }
+    assert.complete(
+      "[null,[true&&false],false]",
+      ArrExpr(List(NullExpr, ArrExpr(List(InfixExpr(And, BoolExpr(true), BoolExpr(false)))), BoolExpr(false))))
+  }
 
   // test("object") {
   //   assert.complete(

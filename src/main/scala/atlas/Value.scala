@@ -5,7 +5,7 @@ import cats.implicits._
 sealed abstract class Value extends Product with Serializable
 
 // final case class ObjVal(fields: List[(String, Value)]) extends Value
-// final case class ArrVal(items: List[Value]) extends Value
+final case class ArrVal(items: List[Value]) extends Value
 final case class StrVal(value: String) extends Value
 final case class IntVal(value: Int) extends Value
 final case class DblVal(value: Double) extends Value

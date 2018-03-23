@@ -31,10 +31,13 @@ object TypeUnifier {
   def unifyOne(constraint: Constraint): Step[Set[Substitution]] =
     constraint match {
       case (a: ConcreteType) === (b: ConcreteType) if a == b =>
-       pure(Set.empty[Substitution])
+        pure(Set.empty[Substitution])
 
       case FuncType(aArgs, aRet) === FuncType(bArgs, bRet) =>
         unifyAll((aRet === bRet) :: (aArgs zip bArgs).map { case (a, b) => a === b })
+
+      case ArrType(aItem) === ArrType(bItem) =>
+        unifyOne(aItem === bItem)
 
       case (a: TypeVar) === b =>
         unifyVar(a, b)
@@ -72,12 +75,13 @@ object TypeUnifier {
       case FuncType(args, ret) => FuncType(args.map(substVar(_, a, b)), substVar(ret, a, b))
       // case UnionType(types)    => UnionTypes(types.map(substVar(_, a, b)))
       // case ObjType()           => ???
-      // case ArrType()           => ???
+      case ArrType(tpe)        => ArrType(substVar(tpe, a, b))
       case tpe @ StrType       => tpe
       case tpe @ IntType       => tpe
       case tpe @ DblType       => tpe
       case tpe @ NullType      => tpe
       case tpe @ BoolType      => tpe
+      case tpe @ AnyType       => tpe
     }
 
   def compose(substs1: Set[Substitution], substs2: Set[Substitution]): Set[Substitution] =
@@ -93,12 +97,13 @@ object TypeUnifier {
       case FuncType(args, ret) => args.exists(contains(a, _)) || contains(a, ret)
       // case UnionType(types)    => types.exists(contains(a))
       // case ObjType()           => ???
-      // case ArrType()           => ???
+      case ArrType(b)          => a == b
       case StrType             => false
       case IntType             => false
       case DblType             => false
       case NullType            => false
       case BoolType            => false
+      case AnyType             => false
     }
 
   def pure[A](value: A): Step[A] =

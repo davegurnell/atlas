@@ -7,7 +7,7 @@ object Time {
       expr
     } finally {
       val t1 = System.currentTimeMillis
-      println(s"$name: ${t1-t0}ms")
+      // println(s"$name: ${t1-t0}ms")
     }
   }
 

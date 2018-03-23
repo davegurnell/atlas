@@ -1,6 +1,7 @@
 package atlas
 
 import atlas.syntax._
+import cats.implicits._
 import minitest._
 import unindent._
 
@@ -50,140 +51,204 @@ object TypeUnifierSuite extends SimpleTestSuite {
       ))
   }
 
-  // test("prefix") {
-  //   assertSuccess(
-  //     expr"!!true",
-  //     List(
-  //       v(0) === FuncType(List(BoolType), BoolType),
-  //       v(1) === FuncType(List(BoolType), BoolType),
-  //       v(2) === BoolType,
-  //       v(1) === FuncType(List(v (2)), BoolType),
-  //       v(0) === FuncType(List(v (1)), BoolType)
-  //     ))
-  // }
+  test("prefix") {
+    assertSuccess(
+      expr"!!true",
+      List(
+        v(0) --> BoolType,
+        v(1) --> BoolType,
+        v(2) --> BoolType
+      ))
+  }
 
-  // test("cast") {
-  //   assertSuccess(
-  //     expr"1 : Int : Real",
-  //     List(
-  //       v(2) === IntType,
-  //       v(1) === v(2),
-  //       v(1) === IntType,
-  //       v(0) === v(1),
-  //       v(0) === DblType
-  //     ))
-  // }
+  test("cast") {
+    assertSuccess(
+      expr"1 : Int : Int",
+      List(
+        v(0) --> IntType,
+        v(1) --> IntType,
+        v(2) --> IntType))
 
-  // test("block") {
-  //   assertSuccess(
-  //     expr"do 1; true end",
-  //     List(
-  //       v(1) === IntType,
-  //       v(2) === BoolType,
-  //       v(0) === v(2)
-  //     ))
-  // }
+    assertFailure(
+      expr"1 : Int : Real",
+      TypeMismatch(DblType, IntType))
+  }
 
-  // test("let / ref") {
-  //   assertSuccess(
-  //     expr"do let a = 1; a end",
-  //     List(
-  //       v(2) === IntType,
-  //       v(1) === v(2),
-  //       v(0) === v(1)
-  //     ))
+  test("block / let / ref") {
+    assertSuccess(
+      expr"""
+      do
+        1
+        true
+      end
+      """,
+      List(
+        v(0) --> BoolType,
+        v(1) --> IntType,
+        v(2) --> BoolType))
 
-  //   assertSuccess(
-  //     expr"do let a: Boolean = 1; a end",
-  //     List(
-  //       v(2) === IntType,
-  //       v(1) === BoolType,
-  //       v(1) === v(2),
-  //       v(0) === v(1)
-  //     ))
-  // }
+    assertSuccess(
+      expr"""
+      do
+        let a = 1
+        let b = 2
+        a > b
+      end
+      """,
+      List(
+        v(0) --> BoolType,
+        v(1) --> IntType,
+        v(2) --> IntType,
+        v(3) --> IntType,
+        v(4) --> IntType,
+        v(5) --> BoolType))
+  }
 
-  // test("func / apply") {
-  //   assertSuccess(
-  //     expr"(a, b) -> a(b)",
-  //     List(
-  //       v(3) === FuncType(List(v(2)), v(1)),
-  //       v(0) === v(3)
-  //     ))
+  test("func / apply") {
+    assertSuccess(
+      expr"n -> n > 0",
+      List(
+        v(0) --> FuncType(List(IntType), BoolType),
+        v(1) --> IntType,
+        v(2) --> BoolType,
+        v(3) --> IntType))
 
-  //   assertSuccess(
-  //     expr"(a: Int -> String, b: Real): Boolean -> a(b)",
-  //     List(
-  //       v(3) === FuncType(List(v(2)), v(1)),
-  //       v(1) === FuncType(List(IntType), StrType),
-  //       v(2) === DblType,
-  //       v(0) === BoolType,
-  //       v(0) === v(3)
-  //     ))
-  // }
+    assertSuccess(
+      expr"(a, b) -> a > b",
+      List(
+        v(0) --> FuncType(List(IntType, IntType), BoolType),
+        v(1) --> IntType,
+        v(2) --> IntType,
+        v(3) --> BoolType))
 
-  // test("block scope") {
-  //   assertSuccess(
-  //     expr"""
-  //     do
-  //       let a = 1
-  //       do
-  //         let a = 'hi'
-  //         a
-  //       end
-  //       a
-  //     end
-  //     """,
-  //     List(
-  //       v(2) === IntType,
-  //       v(1) === v(2),
-  //       v(5) === StrType,
-  //       v(4) === v(5),
-  //       v(3) === v(4),
-  //       v(0) === v(1)
-  //     ))
-  // }
+    assertSuccess(
+      expr"(a: Int -> String, b: Int) -> a(b)",
+      List(
+        v(0) --> FuncType(List(FuncType(List(IntType), StrType), IntType), StrType),
+        v(1) --> FuncType(List(IntType), StrType),
+        v(2) --> IntType,
+        v(3) --> StrType))
 
-  // test("func scope") {
-  //   assertSuccess(
-  //     expr"""
-  //     do
-  //       let apply = (a, b) -> a(b)
-  //       apply(1, 2)
-  //     end
-  //     """,
-  //     List(
-  //       v(5) === FuncType(List(v(4)), v(3)),
-  //       v(2) === v(5),
-  //       v(1) === v(2),
-  //       v(7) === IntType,
-  //       v(8) === IntType,
-  //       v(6) === FuncType(List(v(7), v(8)), v(1)),
-  //       v(0) === v(6)
-  //     ))
-  // }
+    assertSuccess(
+      prog"""
+      let a = n -> n > 0
+      a(10)
+      """,
+      List(
+        v(0) --> BoolType,
+        v(1) --> FuncType(List(IntType), BoolType),
+        v(2) --> FuncType(List(IntType), BoolType),
+        v(3) --> IntType,
+        v(4) --> BoolType,
+        v(5) --> IntType,
+        v(6) --> BoolType,
+        v(7) --> IntType))
 
-  // test("mutual recursion") {
-  //   assertSuccess(
-  //     expr"""
-  //     do
-  //       let a = n -> b(n)
-  //       let b = n -> a(n)
-  //       a(1)
-  //     end
-  //     """,
-  //     List(
-  //       v(5)  === FuncType(List(v(4)), v(2)),
-  //       v(3)  === v(5),
-  //       v(1)  === v(3),
-  //       v(8)  === FuncType(List(v(7)), v(1)),
-  //       v(6)  === v(8),
-  //       v(2)  === v(6),
-  //       v(10) === IntType,
-  //       v(9)  === FuncType(List(v(10)), v(1)),
-  //       v(0)  === v(9)
-  //     ))
-  // }
+    assertSuccess(
+      expr"""
+      do
+        let a = n -> n + 1
+        let b = n -> n > 0
+        b(a(123))
+      end
+      """,
+      List(
+        v(0) --> BoolType,
+        v(1) --> FuncType(List(IntType), IntType),
+        v(2) --> FuncType(List(IntType), BoolType),
+        v(3) --> FuncType(List(IntType), IntType),
+        v(4) --> IntType,
+        v(5) --> IntType,
+        v(6) --> IntType,
+        v(7) --> FuncType(List(IntType), BoolType),
+        v(8) --> IntType,
+        v(9) --> BoolType,
+        v(10) --> IntType,
+        v(11) --> BoolType,
+        v(12) --> IntType,
+        v(13) --> IntType))
+  }
+
+  test("block scope") {
+    assertSuccess(
+      expr"""
+      do
+        let a = 1
+        do
+          let a = 'hi'
+          a
+        end
+        a
+      end
+      """,
+      List(
+        v(0) --> IntType,
+        v(1) --> IntType,
+        v(2) --> IntType,
+        v(3) --> StrType,
+        v(4) --> StrType,
+        v(5) --> StrType))
+  }
+
+  test("func scope") {
+    assertSuccess(
+      expr"""
+      do
+        let add1 = n -> n + 1
+        let apply = (a, b) -> a(b)
+        apply(add1, 2)
+      end
+      """,
+      List(
+        v(0) --> IntType,
+        v(1) --> FuncType(List(IntType), IntType),
+        v(2) --> FuncType(List(FuncType(List(IntType), IntType), IntType), IntType),
+        v(3) --> FuncType(List(IntType), IntType),
+        v(4) --> IntType,
+        v(5) --> IntType,
+        v(6) --> IntType,
+        v(7) --> FuncType(List(FuncType(List(IntType), IntType), IntType), IntType),
+        v(8) --> FuncType(List(IntType), IntType),
+        v(9) --> IntType,
+        v(10) --> IntType,
+        v(11) --> IntType,
+        v(12) --> IntType))
+  }
+
+  test("mutual recursion") {
+    assertSuccess(
+      expr"""
+      do
+        let even = n -> if n == 0 then true  else odd(n - 1)
+        let odd  = n -> if n == 0 then false else even(n - 1)
+        even(10)
+      end
+      """,
+      List(
+        v(0) --> BoolType,
+        v(1) --> FuncType(List(IntType), BoolType),
+        v(2) --> FuncType(List(IntType), BoolType),
+        v(3) --> FuncType(List(IntType), BoolType),
+        v(4) --> IntType,
+        v(5) --> BoolType,
+        v(6) --> BoolType,
+        v(7) --> IntType,
+        v(8) --> BoolType,
+        v(9) --> BoolType,
+        v(10) --> IntType,
+        v(11) --> IntType,
+        v(12) --> FuncType(List(IntType), BoolType),
+        v(13) --> IntType,
+        v(14) --> BoolType,
+        v(15) --> BoolType,
+        v(16) --> IntType,
+        v(17) --> BoolType,
+        v(18) --> BoolType,
+        v(19) --> IntType,
+        v(20) --> IntType,
+        v(21) --> BoolType,
+        v(22) --> IntType))
+  }
 
   def assertSuccess(expr: Expr, expected: List[Substitution], env: Env = Env.create): Unit = {
     val either = for {
@@ -198,8 +263,8 @@ object TypeUnifierSuite extends SimpleTestSuite {
           actual == expected,
           i"""
           Incorrect results from type checking:
-          expr = $expr
-          texpr = $texpr
+          expr = ${show"$expr"}
+          texpr = ${show"$texpr"}
           constraints =
             ${constraints.mkString("\n  ")}
           actual =
@@ -230,8 +295,8 @@ object TypeUnifierSuite extends SimpleTestSuite {
         fail(
           i"""
           Expected type checking to fail, but it succeeded:
-          expr = $expr
-          texpr = $texpr
+          expr = ${show"$expr"}
+          texpr = ${show"$texpr"}
           constraints =
             ${constraints.mkString("\n  ")}
           substs =
@@ -243,7 +308,7 @@ object TypeUnifierSuite extends SimpleTestSuite {
           actual == expected,
           i"""
           Type checking failed with an unexpected error:
-          expr = $expr
+          expr = ${show"$expr"}
           actual = $actual
           expected = $expected
           """)

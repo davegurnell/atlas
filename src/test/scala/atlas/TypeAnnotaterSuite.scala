@@ -98,6 +98,17 @@ object TypeAnnotatorSuite extends SimpleTestSuite {
           TRefExpr(v(2), "b"))))
   }
 
+  test("array") {
+    assertSuccess(
+      expr"[1, 2, 3]",
+      TArrExpr(
+        v(0),
+        List(
+          TIntExpr(v(1), 1),
+          TIntExpr(v(2), 2),
+          TIntExpr(v(3), 3))))
+  }
+
   test("block scope") {
     assertSuccess(
       expr"""

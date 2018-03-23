@@ -47,8 +47,11 @@ trait AllParsers {
   val whitespace: Parser[Unit] =
     P(" " | "\t")
 
-  val comment: Parser[Unit] =
+  val lineComment: Parser[Unit] =
     P("#" ~ CharsWhile(_ != '\n', min = 0) ~ &(newline | End))
+
+  val comment: Parser[Unit] =
+    P(lineComment)
 
   val escape: Parser[Unit] =
     P("\\" ~ ((!(newline | hexDigit) ~ AnyChar) | (hexDigit.rep(min = 1, max = 6) ~ whitespace.?)))
@@ -357,15 +360,13 @@ trait AllParsers {
 
   // -----
 
-  // val arrHit: Parser[Expr] =
-  //   P("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/)
-  //     .map(_.toList)
-  //     .map(Arr)
+  val arrHit: Parser[Expr] =
+    P("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/)
+      .map(_.toList)
+      .map(ArrExpr)
 
   val arr: Parser[Expr] =
-    // TODO: Uncomment
-    // P(arrHit | paren)
-    P(paren)
+    P(arrHit | paren)
 
   // -----
 

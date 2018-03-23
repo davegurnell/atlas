@@ -30,7 +30,7 @@ object TypeGenerator {
       case expr: TCondExpr   => doCond(expr)
       case expr: TCastExpr   => doCast(expr)
       // case expr: TObjExpr    => doObj(expr)
-      // case expr: TArrExpr    => doArr(expr)
+      case expr: TArrExpr    => doArr(expr)
       case expr: TStrExpr    => doStr(expr)
       case expr: TIntExpr    => doInt(expr)
       case expr: TDblExpr    => doDbl(expr)
@@ -61,7 +61,7 @@ object TypeGenerator {
     all(
       doExpr(app.func),
       app.args.traverse(doExpr).map(_.combineAll),
-      assign(app.tpe === FuncType(app.args.map(_.tpe), app.func.tpe))
+      assign(app.func.tpe === FuncType(app.args.map(_.tpe), app.tpe))
     )
 
   def doInfix(infix: TInfixExpr): Step[Set[Constraint]] = {
@@ -87,12 +87,12 @@ object TypeGenerator {
       case InfixOp.Div => FuncType(List(IntType, IntType), IntType)
       case InfixOp.And => FuncType(List(BoolType, BoolType), BoolType)
       case InfixOp.Or  => FuncType(List(BoolType, BoolType), BoolType)
-      case InfixOp.Eq  => FuncType(List(IntType, IntType), IntType)
-      case InfixOp.Ne  => FuncType(List(IntType, IntType), IntType)
-      case InfixOp.Gt  => FuncType(List(IntType, IntType), IntType)
-      case InfixOp.Lt  => FuncType(List(IntType, IntType), IntType)
-      case InfixOp.Gte => FuncType(List(IntType, IntType), IntType)
-      case InfixOp.Lte => FuncType(List(IntType, IntType), IntType)
+      case InfixOp.Eq  => FuncType(List(IntType, IntType), BoolType)
+      case InfixOp.Ne  => FuncType(List(IntType, IntType), BoolType)
+      case InfixOp.Gt  => FuncType(List(IntType, IntType), BoolType)
+      case InfixOp.Lt  => FuncType(List(IntType, IntType), BoolType)
+      case InfixOp.Gte => FuncType(List(IntType, IntType), BoolType)
+      case InfixOp.Lte => FuncType(List(IntType, IntType), BoolType)
     }
 
   def doPrefix(prefix: TPrefixExpr): Step[Set[Constraint]] = {
@@ -123,12 +123,12 @@ object TypeGenerator {
         case Some(resultType) =>
           assign(
             func.tpe === resultType,
-            func.tpe === func.body.tpe
+            func.tpe === FuncType(func.args.map(_.tpe), func.body.tpe)
           )
 
         case None =>
           assign(
-            func.tpe === func.body.tpe
+            func.tpe === FuncType(func.args.map(_.tpe), func.body.tpe)
           )
       }
     )
@@ -177,11 +177,18 @@ object TypeGenerator {
       )
     )
 
-  // def doObj(obj: ObjExpr): Step[Set[Constraint]] =
+  // def doObj(obj: TObjExpr): Step[Set[Constraint]] =
   //   ???
 
-  // def doArr(arr: ArrExpr): Step[Set[Constraint]] =
-  //   ???
+  def doArr(arr: TArrExpr): Step[Set[Constraint]] =
+    if(arr.exprs.isEmpty) {
+      assign(arr.tpe === AnyType)
+    } else {
+      all(
+        arr.exprs.traverse(doExpr).map(_.combineAll),
+        pure(arr.exprs.map(expr => arr.tpe === ArrType(expr.tpe)).toSet)
+      )
+    }
 
   def doStr(str: TStrExpr): Step[Set[Constraint]] =
     assign(str.tpe === StrType)

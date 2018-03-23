@@ -25,7 +25,7 @@ object TypeAnnotator {
       case expr: CondExpr   => doCond(expr)
       case expr: CastExpr   => doCast(expr)
       // case expr: ObjExpr    => doObj(expr)
-      // case expr: ArrExpr    => doArr(expr)
+      case expr: ArrExpr    => doArr(expr)
       case expr: StrExpr    => doStr(expr)
       case expr: IntExpr    => doInt(expr)
       case expr: DblExpr    => doDbl(expr)
@@ -139,8 +139,11 @@ object TypeAnnotator {
   // def doObj(obj: ObjExpr): Step[TExpr] =
   //   ???
 
-  // def doArr(arr: ArrExpr): Step[TExpr] =
-  //   ???
+  def doArr(arr: ArrExpr): Step[TExpr] =
+    for {
+      tpe   <- gen
+      exprs <- arr.exprs.traverse(doExpr)
+    } yield TArrExpr(tpe, exprs)
 
   def doStr(str: StrExpr): Step[TExpr] =
     gen.map(tpe => TStrExpr(tpe, str.value))

@@ -90,7 +90,7 @@ class Macros(val c: blackbox.Context) {
           case CondExpr(test, arm1, arm2) => q"$pkg.CondExpr($test, $arm1, $arm2)"
           case CastExpr(expr, asType)     => q"$pkg.CastExpr($expr, $asType)"
           // case ObjExpr(fields)         => q"$pkg.ObjExpr($fields)"
-          // case ArrExpr(items)          => q"$pkg.ArrExpr($items)"
+          case ArrExpr(items)             => q"$pkg.ArrExpr($items)"
           case StrExpr(value)             => q"$pkg.StrExpr($value)"
           case IntExpr(value)             => q"$pkg.IntExpr($value)"
           case DblExpr(value)             => q"$pkg.DblExpr($value)"
@@ -143,12 +143,13 @@ class Macros(val c: blackbox.Context) {
           case FuncType(args, res) => q"$pkg.FuncType($args, $res)"
           // case UnionType(types)    => q"$pkg.UnionType($types)"
           // case ObjType(fieldTypes) => q"$pkg.ObjType($fieldTypes)"
-          // case ArrType(tpe)        => q"$pkg.ArrType($tpe)"
+          case ArrType(tpe)        => q"$pkg.ArrType($tpe)"
           case StrType             => q"$pkg.StrType"
           case IntType             => q"$pkg.IntType"
           case DblType             => q"$pkg.DblType"
           case NullType            => q"$pkg.NullType"
           case BoolType            => q"$pkg.BoolType"
+          case AnyType             => q"$pkg.AnyType"
         }
     }
 
