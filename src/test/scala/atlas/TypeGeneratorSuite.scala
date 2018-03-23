@@ -176,6 +176,16 @@ object TypeGeneratorSuite extends SimpleTestSuite {
         v(1) === IntType,
         v(2) === IntType,
         v(3) === IntType))
+
+    assertSuccess(
+      expr"a -> [1, a, 3]",
+      List(
+        v(0) === FuncType(List(v(1)), v(2)),
+        v(2) === ArrType(v(1)),
+        v(2) === ArrType(v(3)),
+        v(2) === ArrType(v(4)),
+        v(3) === IntType,
+        v(4) === IntType))
   }
 
   test("block scope") {
@@ -285,7 +295,6 @@ object TypeGeneratorSuite extends SimpleTestSuite {
           Expected type checking to succeed, but it failed:
           $error
           """)
-
     }
   }
 

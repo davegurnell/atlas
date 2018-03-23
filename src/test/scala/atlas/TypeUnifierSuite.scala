@@ -169,6 +169,30 @@ object TypeUnifierSuite extends SimpleTestSuite {
         v(13) --> IntType))
   }
 
+  test("array") {
+    assertSuccess(
+      expr"[]",
+      List(
+        v(0) --> AnyType))
+
+    assertSuccess(
+      expr"[1, 2, 3]",
+      List(
+        v(0) --> ArrType(IntType),
+        v(1) --> IntType,
+        v(2) --> IntType,
+        v(3) --> IntType))
+
+    assertSuccess(
+      expr"a -> [1, a, 3]",
+      List(
+        v(0) --> FuncType(List(IntType), ArrType(IntType)),
+        v(1) --> IntType,
+        v(2) --> ArrType(IntType),
+        v(3) --> IntType,
+        v(4) --> IntType))
+  }
+
   test("block scope") {
     assertSuccess(
       expr"""
