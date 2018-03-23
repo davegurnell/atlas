@@ -1,74 +1,72 @@
-package atlas
+// package atlas
 
-import atlas.syntax._
-import minitest._
+// import atlas.syntax._
+// import minitest._
 
-object SimpleTypeCheckerSuite extends SimpleTestSuite {
-  import Type._
+// object SimpleTypeCheckerSuite extends SimpleTestSuite {
+//   test("constant") {
+//     assertSuccess(expr"true", BoolType)
+//   }
 
-  test("constant") {
-    assertSuccess(expr"true", Type.Bool)
-  }
+//   test("cond") {
+//     assertSuccess(expr"if true then 123 else 456", IntType)
+//     assertFailure(expr"if true then 123 else '456'", TypeMismatch(IntType, StrType))
+//     assertFailure(expr"if true then '123' else 456", TypeMismatch(StrType, IntType))
+//   }
 
-  test("cond") {
-    assertSuccess(expr"if true then 123 else 456", Type.Intr)
-    assertSuccess(expr"if true then 123 else '456'", Union(Set(Intr, Str)))
-    assertSuccess(expr"if true then '123' else 456", Union(Set(Intr, Str)))
-  }
+//   test("infix") {
+//     assertSuccess(expr"1 + 1", IntType)
+//     assertSuccess(expr"1 + 1.0", DblType)
+//     assertSuccess(expr"'1' + '1'", StrType)
+//     assertFailure(expr"1 + '1'", InfixNotDefined(InfixOp.Add, IntType, StrType))
+//   }
 
-  test("infix") {
-    assertSuccess(expr"1 + 1", Intr)
-    assertSuccess(expr"1 + 1.0", Real)
-    assertSuccess(expr"'1' + '1'", Str)
-    assertFailure(expr"1 + '1'", InfixNotDefined(InfixOp.Add, Intr, Str))
-  }
+//   test("prefix") {
+//     assertSuccess(expr"!true", BoolType)
+//     assertSuccess(expr"!false", BoolType)
+//     assertFailure(expr"!'1'", PrefixNotDefined(PrefixOp.Not, StrType))
 
-  test("prefix") {
-    assertSuccess(expr"!true", Bool)
-    assertSuccess(expr"!false", Bool)
-    assertFailure(expr"!'1'", PrefixNotDefined(PrefixOp.Not, Str))
+//     assertSuccess(expr"+1", IntType)
+//     assertSuccess(expr"+1.0", DblType)
+//     assertFailure(expr"+'1'", PrefixNotDefined(PrefixOp.Pos, StrType))
 
-    assertSuccess(expr"+1", Intr)
-    assertSuccess(expr"+1.0", Real)
-    assertFailure(expr"+'1'", PrefixNotDefined(PrefixOp.Pos, Str))
+//     assertSuccess(expr"-1", IntType)
+//     assertSuccess(expr"-1.0", DblType)
+//     assertFailure(expr"-'1'", PrefixNotDefined(PrefixOp.Neg, StrType))
+//   }
 
-    assertSuccess(expr"-1", Intr)
-    assertSuccess(expr"-1.0", Real)
-    assertFailure(expr"-'1'", PrefixNotDefined(PrefixOp.Neg, Str))
-  }
+//   test("cast") {
+//     assertSuccess(expr"1 : Int", IntType)
+//     assertSuccess(expr"1 : Real", DblType)
+//     assertFailure(expr"1.0 : Int", TypeMismatch(IntType, DblType))
+//     assertFailure(expr"(1 + 1.0) : Int", TypeMismatch(IntType, DblType))
+//     assertSuccess(expr"(1 + 1.0) : Real", DblType)
+//   }
 
-  test("cast") {
-    assertSuccess(expr"1 : Int", Type.Intr)
-    assertSuccess(expr"1 : Real", Type.Real)
-    assertFailure(expr"1.0 : Int", TypeMismatch(Type.Intr, Type.Real))
-    assertFailure(expr"(1 + 1.0) : Int", TypeMismatch(Type.Intr, Type.Real))
-    assertSuccess(expr"(1 + 1.0) : Real", Type.Real)
-  }
+//   test("defn") {
+//     assertSuccess(expr"do let a = 1; a end", IntType)
+//     assertSuccess(expr"do let a: Int = 1; a end", IntType)
+//     assertSuccess(expr"do let a: Real = 1; a end", DblType)
+//     assertFailure(expr"do let a: Int = 1.0; a end", TypeMismatch(IntType, DblType))
 
-  test("defn") {
-    assertSuccess(expr"do let a = 1; a end", Type.Intr)
-    assertSuccess(expr"do let a: Int = 1; a end", Type.Intr)
-    assertSuccess(expr"do let a: Real = 1; a end", Type.Real)
-    assertFailure(expr"do let a: Int = 1.0; a end", TypeMismatch(Type.Intr, Type.Real))
+//     assertSuccess(expr"do let a = 1; let b = 1.0; a + b end", DblType)
+//     assertFailure(expr"do let a = 1; let b = 'foo'; a + b end", InfixNotDefined(InfixOp.Add, IntType, StrType))
+//   }
 
-    assertSuccess(expr"do let a = 1; let b = 1.0; a + b end", Type.Real)
-    assertFailure(expr"do let a = 1; let b = 'foo'; a + b end", InfixNotDefined(InfixOp.Add, Intr, Str))
-  }
+//   test("func") {
+//     assertSuccess(expr"(a, b) -> a + b", NullType)
+//   }
 
-  test("func") {
-    assertSuccess(expr"(a, b) -> a + b", Type.Null)
-  }
+//   // test("native functions") {
+//   //   // TODO: This should be generic!
+//   //   val expected = Func(List(Func(List(Top), Top), Arr(Top)), Arr(Top))
 
-  test("native functions") {
-    // TODO: This should be generic!
-    val expected = Func(List(Func(List(Top), Top), Arr(Top)), Arr(Top))
+//   //   assertSuccess(expr"map", expected, Env.basic)
+//   // }
 
-    assertSuccess(expr"map", expected, Env.basic)
-  }
+//   def assertSuccess(expr: Expr, expected: Type, env: Env = Env.create): Unit =
+//     assertEquals(TypeChecker(expr, env), Right(expected))
 
-  def assertSuccess(expr: Ast.Expr, expected: Type, env: Env = Env.create): Unit =
-    assertEquals(TypeChecker(expr, env), Right(expected))
-
-  def assertFailure(expr: Ast.Expr, expected: TypeError, env: Env = Env.create): Unit =
-    assertEquals(TypeChecker(expr, env), Left(expected))
-}
+//   def assertFailure(expr: Expr, expected: TypeError, env: Env = Env.create): Unit =
+//     assertEquals(TypeChecker(expr, env), Left(expected))
+// }

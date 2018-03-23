@@ -1,282 +1,278 @@
-package atlas
+// package atlas
 
-import cats.data.{EitherT, State}
-import cats.implicits._
+// import cats.data.{EitherT, State}
+// import cats.implicits._
 
-object TypeChecker {
-  import Ast._
-  import Ast.Literal._
+// object TypeChecker {
+//   type Step[A] = EitherT[Lambda[X => State[TypeEnv, X]], TypeError, A]
 
-  type Step[A] = EitherT[Lambda[X => State[TypeEnv, X]], TypeError, A]
+//   def apply(expr: Expr, env: Env = Env.create): Either[TypeError, Type] =
+//     exprType(expr).value.runA(typeEnv(env)).value
 
-  def apply(expr: Expr, env: Env = Env.create): Either[TypeError, Type] =
-    exprType(expr).value.runA(typeEnv(env)).value
+//   def exprType(expr: Expr): Step[Type] =
+//     expr match {
+//       case expr: RefExpr     => refType(expr)
+//       case expr: LetExpr     => letType(expr)
+//       case expr: AppExpr     => appType(expr)
+//       case expr: InfixExpr   => infixType(expr)
+//       case expr: PrefixExpr  => prefixType(expr)
+//       case expr: FuncExpr    => funcType(expr)
+//       case expr: BlockExpr   => blockType(expr)
+//       // case expr: SelectExpr  => selectType(expr)
+//       case expr: CondExpr    => condType(expr)
+//       case expr: CastExpr    => castType(expr)
+//       // case expr: ObjExpr     => objType(expr)
+//       // case expr: ArrExpr     => arrType(expr)
+//       case expr: StrExpr     => pure(StrType)
+//       case expr: IntExpr     => pure(IntType)
+//       case expr: DblExpr     => pure(DblType)
+//       case expr: BoolExpr    => pure(BoolType)
+//       case NullExpr          => pure(NullType)
+//     }
 
-  def exprType(expr: Expr): Step[Type] =
-    expr match {
-      case expr: Ref     => refType(expr)
-      case expr: Block   => blockType(expr)
-      case expr: Select  => selectType(expr)
-      case expr: Cond    => condType(expr)
-      case expr: Infix   => infixType(expr)
-      case expr: Prefix  => prefixType(expr)
-      case expr: Cast    => castType(expr)
-      case expr: Apply   => applyType(expr)
-      case expr: Literal => literalType(expr)
-    }
+//   def refType(ref: RefExpr): Step[Type] =
+//     lookupType(ref)
 
-  def refType(ref: Ref): Step[Type] =
-    lookupType(ref)
+//   def letType(defn: LetExpr): Step[Type] =
+//     for {
+//       exprTpe <- exprType(defn.expr)
+//       defnTpe <- defn.tpe match {
+//                    case Some(defnTpe) => assertAssignable(defnTpe, exprTpe).map(_ => defnTpe)
+//                    case None          => pure(exprTpe)
+//                  }
+//       _       <- inspectEnv(_.scopes.head.destructiveSet(RefExpr(defn.name), defnTpe))
+//     } yield NullType
 
-  def blockType(block: Block): Step[Type] =
-    pushScope {
-      for {
-        _    <- stmtsType(block.stmts)
-        ans  <- exprType(block.expr)
-      } yield ans
-    }
+//   def appType(expr: AppExpr): Step[Type] =
+//     ???
 
-  def stmtsType(stmts: List[Stmt]): Step[Unit] =
-    stmts.foldLeft(pure(())) { (a, b) =>
-      a.flatMap(_ => stmtType(b))
-    }
+//   def infixType(expr: InfixExpr): Step[Type] =
+//     for {
+//       a   <- exprType(expr.arg1)
+//       b   <- exprType(expr.arg2)
+//       ans <- infixType(expr.op, a, b)
+//     } yield ans
 
-  def stmtType(stmt: Stmt): Step[Unit] =
-    stmt match {
-      case defn: DefnStmt => defnType(defn)
-      case stmt: ExprStmt => exprType(stmt.expr).map(_ => ())
-    }
+//   def infixType(op: InfixOp, a: Type, b: Type): Step[Type] = {
+//     import InfixOp._
 
-  def defnType(defn: DefnStmt): Step[Unit] =
-    for {
-      exprTpe <- exprType(defn.expr)
-      defnTpe <- defn.tpe match {
-                   case Some(defnTpe) => assertAssignable(defnTpe, exprTpe).map(_ => defnTpe)
-                   case None          => pure(exprTpe)
-                 }
-      _       <- inspectEnv(_.scopes.head.destructiveSet(Ref(defn.name), defnTpe))
-    } yield ()
+//     // TODO: Replace with lookup in InfixFunc:
+//     (op, a, b) match {
+//       case (Add, IntType, IntType) => pure(IntType)
+//       case (Add, IntType, DblType) => pure(DblType)
+//       case (Add, DblType, IntType) => pure(DblType)
+//       case (Add, DblType, DblType) => pure(DblType)
+//       case (Add, StrType, StrType) => pure(StrType)
 
-  def selectType(expr: Select): Step[Type] =
-    ???
+//       case (Sub, IntType, IntType) => pure(IntType)
+//       case (Sub, DblType, IntType) => pure(DblType)
+//       case (Sub, IntType, DblType) => pure(DblType)
+//       case (Sub, DblType, DblType) => pure(DblType)
 
-  def condType(expr: Cond): Step[Type] =
-    for {
-      a <- exprType(expr.test)
-      _ <- assertAssignable(a, Type.Bool)
-      b <- exprType(expr.trueArm)
-      c <- exprType(expr.falseArm)
-    } yield Type.union(b, c)
+//       case (Mul, IntType, IntType) => pure(IntType)
+//       case (Mul, DblType, IntType) => pure(DblType)
+//       case (Mul, IntType, DblType) => pure(DblType)
+//       case (Mul, DblType, DblType) => pure(DblType)
 
-  def infixType(expr: Infix): Step[Type] =
-    for {
-      a   <- exprType(expr.arg1)
-      b   <- exprType(expr.arg2)
-      ans <- infixType(expr.op, a, b)
-    } yield ans
+//       case (Div, IntType, IntType) => pure(IntType)
+//       case (Div, DblType, IntType) => pure(DblType)
+//       case (Div, IntType, DblType) => pure(DblType)
+//       case (Div, DblType, DblType) => pure(DblType)
 
-  def infixType(op: InfixOp, a: Type, b: Type): Step[Type] = {
-    import InfixOp._
-    import Type._
+//       case (And, BoolType, BoolType) => pure(BoolType)
+//       case (Or,  BoolType, BoolType) => pure(BoolType)
 
-    // TODO: Replace with lookup in InfixFunc:
-    (op, a, b) match {
-      case (Add, Intr, Intr) => pure(Intr)
-      case (Add, Intr, Real) => pure(Real)
-      case (Add, Real, Intr) => pure(Real)
-      case (Add, Real, Real) => pure(Real)
-      case (Add, Str,  Str)  => pure(Str)
+//       case (Eq,  a, b) if a == b => pure(BoolType)
+//       case (Ne,  a, b) if a == b => pure(BoolType)
 
-      case (Sub, Intr, Intr) => pure(Intr)
-      case (Sub, Real, Intr) => pure(Real)
-      case (Sub, Intr, Real) => pure(Real)
-      case (Sub, Real, Real) => pure(Real)
+//       case (Gt,  IntType, IntType) => pure(BoolType)
+//       case (Gt,  IntType, DblType) => pure(BoolType)
+//       case (Gt,  DblType, IntType) => pure(BoolType)
+//       case (Gt,  DblType, DblType) => pure(BoolType)
+//       case (Gt,  StrType,  StrType)  => pure(BoolType)
+//       case (Gt,  BoolType, BoolType) => pure(BoolType)
 
-      case (Mul, Intr, Intr) => pure(Intr)
-      case (Mul, Real, Intr) => pure(Real)
-      case (Mul, Intr, Real) => pure(Real)
-      case (Mul, Real, Real) => pure(Real)
+//       case (Lt,  IntType, IntType) => pure(BoolType)
+//       case (Lt,  IntType, DblType) => pure(BoolType)
+//       case (Lt,  DblType, IntType) => pure(BoolType)
+//       case (Lt,  DblType, DblType) => pure(BoolType)
+//       case (Lt,  StrType,  StrType)  => pure(BoolType)
+//       case (Lt,  BoolType, BoolType) => pure(BoolType)
 
-      case (Div, Intr, Intr) => pure(Intr)
-      case (Div, Real, Intr) => pure(Real)
-      case (Div, Intr, Real) => pure(Real)
-      case (Div, Real, Real) => pure(Real)
+//       case (Gte, IntType, IntType) => pure(BoolType)
+//       case (Gte, IntType, DblType) => pure(BoolType)
+//       case (Gte, DblType, IntType) => pure(BoolType)
+//       case (Gte, DblType, DblType) => pure(BoolType)
+//       case (Gte, StrType,  StrType)  => pure(BoolType)
+//       case (Gte, BoolType, BoolType) => pure(BoolType)
 
-      case (And, Bool, Bool) => pure(Bool)
-      case (Or,  Bool, Bool) => pure(Bool)
+//       case (Lte, IntType, IntType) => pure(BoolType)
+//       case (Lte, IntType, DblType) => pure(BoolType)
+//       case (Lte, DblType, IntType) => pure(BoolType)
+//       case (Lte, DblType, DblType) => pure(BoolType)
+//       case (Lte, StrType,  StrType)  => pure(BoolType)
+//       case (Lte, BoolType, BoolType) => pure(BoolType)
 
-      case (Eq,  a, b) if a == b => pure(Bool)
-      case (Ne,  a, b) if a == b => pure(Bool)
+//       case _ => fail(InfixNotDefined(op, a, b))
+//     }
+//   }
 
-      case (Gt,  Intr, Intr) => pure(Bool)
-      case (Gt,  Intr, Real) => pure(Bool)
-      case (Gt,  Real, Intr) => pure(Bool)
-      case (Gt,  Real, Real) => pure(Bool)
-      case (Gt,  Str,  Str)  => pure(Bool)
-      case (Gt,  Bool, Bool) => pure(Bool)
+//   def prefixType(expr: PrefixExpr): Step[Type] =
+//     for {
+//       a   <- exprType(expr.arg)
+//       ans <- prefixType(expr.op, a)
+//     } yield ans
 
-      case (Lt,  Intr, Intr) => pure(Bool)
-      case (Lt,  Intr, Real) => pure(Bool)
-      case (Lt,  Real, Intr) => pure(Bool)
-      case (Lt,  Real, Real) => pure(Bool)
-      case (Lt,  Str,  Str)  => pure(Bool)
-      case (Lt,  Bool, Bool) => pure(Bool)
+//   def prefixType(op: PrefixOp, a: Type): Step[Type] = {
+//     import PrefixOp._
 
-      case (Gte, Intr, Intr) => pure(Bool)
-      case (Gte, Intr, Real) => pure(Bool)
-      case (Gte, Real, Intr) => pure(Bool)
-      case (Gte, Real, Real) => pure(Bool)
-      case (Gte, Str,  Str)  => pure(Bool)
-      case (Gte, Bool, Bool) => pure(Bool)
+//     // TODO: Replace with lookup in PrefixFunc:
+//     (op, a) match {
+//       case (Not, BoolType) => pure(BoolType)
 
-      case (Lte, Intr, Intr) => pure(Bool)
-      case (Lte, Intr, Real) => pure(Bool)
-      case (Lte, Real, Intr) => pure(Bool)
-      case (Lte, Real, Real) => pure(Bool)
-      case (Lte, Str,  Str)  => pure(Bool)
-      case (Lte, Bool, Bool) => pure(Bool)
+//       case (Pos, IntType) => pure(IntType)
+//       case (Pos, DblType) => pure(DblType)
 
-      case _ => fail(InfixNotDefined(op, a, b))
-    }
-  }
+//       case (Neg, IntType) => pure(IntType)
+//       case (Neg, DblType) => pure(DblType)
 
-  def prefixType(expr: Prefix): Step[Type] =
-    for {
-      a   <- exprType(expr.arg)
-      ans <- prefixType(expr.op, a)
-    } yield ans
+//       case _ => fail(PrefixNotDefined(op, a))
+//     }
+//   }
 
-  def prefixType(op: PrefixOp, a: Type): Step[Type] = {
-    import PrefixOp._
-    import Type._
+//   def funcType(func: FuncExpr): Step[Type] =
+//     for {
+//       argTypes <- func.args.traverse {
+//                     case FuncArg(name, Some(tpe)) => assignType(RefExpr(name), tpe)
+//                     case FuncArg(name, None)      => generateType(RefExpr(name))
+//                   }
+//       exprType <- exprType(func.body)
+//       resType  <- func.resultType match {
+//                     case Some(tpe) => assertAssignable(tpe, exprType).map(_ => tpe)
+//                     case _         => pure(exprType)
+//                   }
+//     } yield FuncType(argTypes, resType)
 
-    // TODO: Replace with lookup in PrefixFunc:
-    (op, a) match {
-      case (Not, Bool) => pure(Bool)
+//   def blockType(block: BlockExpr): Step[Type] =
+//     pushScope {
+//       for {
+//         // Iterate, altering typer state but not collecting types:
+//         _    <- block.stmts.traverse(exprType).map(_ => ())
+//         ans  <- exprType(block.expr)
+//       } yield ans
+//     }
 
-      case (Pos, Intr) => pure(Intr)
-      case (Pos, Real) => pure(Real)
+//   // def selectType(expr: SelectExpr): Step[Type] =
+//   //   ???
 
-      case (Neg, Intr) => pure(Intr)
-      case (Neg, Real) => pure(Real)
+//   def condType(expr: CondExpr): Step[Type] =
+//     for {
+//       a   <- exprType(expr.test)
+//       _   <- assertAssignable(a, BoolType)
+//       b   <- exprType(expr.trueArm)
+//       c   <- exprType(expr.falseArm)
+//       ans <- unify(b, c)
+//     } yield ans
 
-      case _ => fail(PrefixNotDefined(op, a))
-    }
-  }
+//   def castType(cast: CastExpr): Step[Type] =
+//     for {
+//       exprTpe <- exprType(cast.expr)
+//       _       <- assertAssignable(cast.asType, exprTpe)
+//     } yield cast.asType
 
-  def castType(cast: Cast): Step[Type] =
-    for {
-      exprTpe <- exprType(cast.expr)
-      _       <- assertAssignable(cast.asType, exprTpe)
-    } yield cast.asType
+//   // def objType(obj: ObjExpr): Step[Type] =
+//   //   obj.fields
+//   //     .traverse { case (n, e) => exprType(e).map(t => Map(n -> t)) }
+//   //     .map(ts => Obj(ts.combineAll.toList))
 
-  def applyType(expr: Apply): Step[Type] =
-    ???
+//   // def arrType(arr: ArrExpr): Step[Type] =
+//   //   arr.items
+//   //     .traverse(exprType)
+//   //     .map(_.combineAll)
 
-  def literalType(expr: Literal): Step[Type] =
-    expr match {
-      case expr: Func  => funcType(expr)
-      case Obj(fields) => fields
-                            .traverse { case (n, e) => exprType(e).map(t => Map(n -> t)) }
-                            .map(ts => Type.Obj(ts.combineAll.toList))
-      case Arr(items)  => items
-                            .traverse(exprType)
-                            .map(_.combineAll)
-      case Str(value)  => pure(Type.Str)
-      case Intr(value) => pure(Type.Intr)
-      case Real(value) => pure(Type.Real)
-      case Null        => pure(Type.Null)
-      case _: Bool     => pure(Type.Bool)
-    }
+//   // Apping types to initial native environments:
 
-  def funcType(func: Func): Step[Type] =
-    for {
-      argTypes <- func.args.traverse(argType)
-      exprType <- exprType(func.body)
-      resType  <- func.resultType match {
-                    case Some(tpe) => assertAssignable(tpe, exprType).map(_ => tpe)
-                    case _         => pure(exprType)
-                  }
-    } yield Type.Func(argTypes, resType)
+//   def typeEnv(env: Env): TypeEnv = {
+//     TypeEnv(env.scopes.map(typeScope))
+//   }
 
-  def argType(arg: Arg): Step[Type] =
-    arg.tpe match {
-      case Some(tpe) => assignType(Ref(arg.name), tpe)
-      case None      => generateType(Ref(arg.name))
-    }
+//   def typeScope(scope: Scope): TypeScope =
+//     TypeScope(scope.bindings.map { case (n, v) => (RefExpr(n), TypeChecker.valueType(v)) }, Set())
 
-  // Applying types to initial native environments:
+//   def valueType(value: Value): Type =
+//     value match {
+//       // case ObjVal(fields) => Obj(fields.map { case (n, v) => (n, valueType(v)) })
+//       // case ArrVal(items)  => Arr(items.foldLeft(bottom)((t, v) => union(t, valueType(v))))
+//       case _: StrVal      => StrType
+//       case _: IntVal      => IntType
+//       case _: DblVal      => DblType
+//       case _: BoolVal     => BoolType
+//       case NullVal        => NullType
+//       case Closure(f, _)  => ???
+//       // case Native(t, _)   => t
+//     }
 
-  def typeEnv(env: Env): TypeEnv = {
-    TypeEnv(env.scopes.map(typeScope))
-  }
+//   // Underlying step constructors:
 
-  def typeScope(scope: Scope): TypeScope =
-    TypeScope(scope.bindings.map { case (n, v) => (Ref(n), TypeChecker.valueType(v)) }, Set())
+//   def pureEither[A](either: Either[TypeError, A]): Step[A] =
+//     EitherT(State[TypeEnv, Either[TypeError, A]](types => (types, either)))
 
-  def valueType(value: Value): Type =
-    value match {
-      case Value.Obj(fields)   => Type.Obj(fields.map { case (n, v) => (n, valueType(v)) })
-      case Value.Arr(items)    => Type.Arr(items.foldLeft(Type.bottom)((t, v) => Type.union(t, valueType(v))))
-      case _: Value.Str        => Type.Str
-      case _: Value.Intr       => Type.Intr
-      case _: Value.Real       => Type.Real
-      case _: Value.Bool       => Type.Bool
-      case Value.Null          => Type.Null
-      case Value.Closure(f, _) => ???
-      case Value.Native(t, _)  => t
-    }
+//   def pure[A](value: A): Step[A] =
+//     pureEither(Right(value))
 
-  // Underlying step constructors:
+//   def fail[A](error: TypeError): Step[A] =
+//     EitherT(State[TypeEnv, Either[TypeError, A]](env => (env, Left(error))))
 
-  def pureEither[A](either: Either[TypeError, A]): Step[A] =
-    EitherT(State[TypeEnv, Either[TypeError, A]](types => (types, either)))
+//   def assertAssignable(to: Type, from: Type): Step[Unit] =
+//     (to, from) match {
+//       case (a, b) if a == b   => pure(())
+//       case (DblType, IntType) => pure(())
+//       case (a, b)             => fail(TypeMismatch(a, b))
+//     }
 
-  def pure[A](value: A): Step[A] =
-    pureEither(Right(value))
+//   def unify(a: Type, b: Type): Step[Type] =
+//     (a, b) match {
+//       case (a, b) if a == b   => pure(a)
+//       case (DblType, IntType) => pure(DblType)
+//       case (IntType, DblType) => pure(DblType)
+//       case (a, b)             => fail(TypeMismatch(a, b))
+//     }
 
-  def fail[A](error: TypeError): Step[A] =
-    EitherT(State[TypeEnv, Either[TypeError, A]](env => (env, Left(error))))
+//   def inspectEnv[A](func: TypeEnv => A): Step[A] =
+//     EitherT(State[TypeEnv, Either[TypeError, A]](env => (env, Right(func(env)))))
 
-  def assertAssignable(to: Type, from: Type): Step[Unit] =
-    (to, from) match {
-      case (a, b) if a == b       => pure(())
-      case (Type.Real, Type.Intr) => pure(())
-      case (a, b)                 => fail(TypeMismatch(a, b))
-    }
+//   def currentEnv: Step[TypeEnv] =
+//     EitherT(State[TypeEnv, Either[TypeError, TypeEnv]](env => (env, Right(env))))
 
-  def inspectEnv[A](func: TypeEnv => A): Step[A] =
-    EitherT(State[TypeEnv, Either[TypeError, A]](env => (env, Right(func(env)))))
+//   def inspectEnvEither[A](func: TypeEnv => Either[TypeError, A]): Step[A] =
+//     EitherT(State[TypeEnv, Either[TypeError, A]](env => (env, func(env))))
 
-  def currentEnv: Step[TypeEnv] =
-    EitherT(State[TypeEnv, Either[TypeError, TypeEnv]](env => (env, Right(env))))
+//   def modifyEnv(f: TypeEnv => TypeEnv): Step[Unit] =
+//     EitherT(State[TypeEnv, Either[TypeError, Unit]](env => (f(env), Right(()))))
 
-  def inspectEnvEither[A](func: TypeEnv => Either[TypeError, A]): Step[A] =
-    EitherT(State[TypeEnv, Either[TypeError, A]](env => (env, func(env))))
+//   def lookupType(expr: Expr): Step[Type] =
+//     currentEnv.flatMap { env =>
+//       env.get(expr) match {
+//         case Some(tpe) => pure(tpe)
+//         case None      => generateType(expr)
+//       }
+//     }
 
-  def modifyEnv(f: TypeEnv => TypeEnv): Step[Unit] =
-    EitherT(State[TypeEnv, Either[TypeError, Unit]](env => (f(env), Right(()))))
+//   def assignType(expr: Expr, tpe: Type): Step[Type] =
+//     modifyEnv(env => env.set(expr, tpe)).map(_ => tpe)
 
-  def lookupType(expr: Expr): Step[Type] =
-    currentEnv.flatMap { env =>
-      env.get(expr) match {
-        case Some(tpe) => pure(tpe)
-        case None      => generateType(expr)
-      }
-    }
 
-  def assignType(expr: Expr, tpe: Type): Step[Type] =
-    modifyEnv(env => env.set(expr, tpe)).map(_ => tpe)
+//   private var _nextTypeVar = 0
+//   def generateType(expr: Expr): Step[Type] = {
+//     _nextTypeVar = _nextTypeVar + 1
+//     val tpe = TypeVar(s"v${_nextTypeVar}")
+//     modifyEnv(env  => env.set(expr, tpe)).map(_ => tpe)
+//   }
 
-  def generateType(expr: Expr): Step[Type] = {
-    val tpe = TypeEnv.gen
-    modifyEnv(env  => env.set(expr, tpe)).map(_ => tpe)
-  }
-
-  def pushScope[A](body: Step[A]): Step[A] =
-    for {
-      _   <- modifyEnv(_.push)
-      ans <- body
-      _   <- modifyEnv(_.pop)
-    } yield ans
-}
+//   def pushScope[A](body: Step[A]): Step[A] =
+//     for {
+//       _   <- modifyEnv(_.push)
+//       ans <- body
+//       _   <- modifyEnv(_.pop)
+//     } yield ans
+// }

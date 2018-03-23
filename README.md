@@ -198,12 +198,12 @@ and `prog` for complete programs:
 import atlas._
 import atlas.syntax._
 
-val anExpression: Ast.Expr =
+val anExpression: Expr =
   expr"""
   1 + 2 + 3
   """
 
-val aProgram: Ast.Expr =
+val aProgram: Expr =
   prog"""
   let fib = n ->
     if n <= 2
@@ -223,7 +223,7 @@ to parse a regular Scala string:
 Syntax errors using the parser result in an `Either`:
 
 ```scala
-val anotherExpression: Either[Parser.Error, Ast.Expr] =
+val anotherExpression: Either[Parser.Error, Expr] =
   Parser.expr("1 + 2 + 3")
 ```
 

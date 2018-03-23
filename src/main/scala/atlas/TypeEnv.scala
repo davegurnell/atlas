@@ -1,8 +1,6 @@
 package atlas
 
-import Ast.Expr
-
-final case class TypeScope(var bindings: Map[Expr, Type], var variables: Set[Type.Var]) {
+final case class TypeScope(var bindings: Map[Expr, Type], var variables: Set[TypeVar]) {
   def get(expr: Expr): Option[Type] =
     bindings.collectFirst { case (`expr`, tpe) => tpe }
 
@@ -47,10 +45,4 @@ object TypeEnv {
 
   def create(scope: TypeScope): TypeEnv =
     TypeEnv(List(scope))
-
-  private var nextVar = 0
-  def gen: Type.Var = {
-    nextVar = nextVar + 1
-    Type.Var(nextVar)
-  }
 }

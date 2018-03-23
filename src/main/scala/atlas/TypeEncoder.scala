@@ -22,32 +22,25 @@ trait TypeEncoderFunctions {
     }
 }
 
-trait TypeEncoderInstances extends TypeEncoderLowPriorityInstances {
+trait TypeEncoderInstances {
   self: TypeEncoderFunctions =>
-
-  import Type._
 
   implicit def value: TypeEncoder[Value] =
-    pure(Type.Top)
+    // pure(TopType)
+    ???
 
   implicit def boolean: TypeEncoder[Boolean] =
-    pure(Type.Bool)
+    pure(BoolType)
 
   implicit def int: TypeEncoder[Int] =
-    pure(Type.Intr)
+    pure(IntType)
 
   implicit def double: TypeEncoder[Double] =
-    pure(Type.Real)
+    pure(DblType)
 
   implicit def string: TypeEncoder[String] =
-    pure(Type.Str)
+    pure(StrType)
 
-  implicit def list[A](implicit enc: TypeEncoder[A]): TypeEncoder[List[A]] =
-    pure(Arr(enc.get))
-}
-
-trait TypeEncoderLowPriorityInstances {
-  self: TypeEncoderFunctions =>
-
-  import Type._
+  // implicit def list[A](implicit enc: TypeEncoder[A]): TypeEncoder[List[A]] =
+  //   pure(ArrType(enc.get))
 }
