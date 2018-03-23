@@ -23,12 +23,11 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"if true then 123 else 456",
       List(
+        v(0) === v(2),
+        v(0) === v(3),
         v(1) === BoolType,
         v(2) === IntType,
-        v(3) === IntType,
-        v(1) === BoolType,
-        v(0) === v(2),
-        v(0) === v(3)
+        v(3) === IntType
       ))
   }
 
@@ -36,15 +35,11 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"123 + 456 + 789",
       List(
+        v(0) === IntType,
+        v(1) === IntType,
         v(2) === IntType,
         v(3) === IntType,
-        v(2) === IntType,
-        v(3) === IntType,
-        v(1) === IntType,
-        v(4) === IntType,
-        v(1) === IntType,
-        v(4) === IntType,
-        v(0) === IntType
+        v(4) === IntType
       ))
   }
 
@@ -52,11 +47,9 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"!!true",
       List(
-        v(2) === BoolType,
-        v(2) === BoolType,
+        v(0) === BoolType,
         v(1) === BoolType,
-        v(1) === BoolType,
-        v(0) === BoolType
+        v(2) === BoolType
       ))
   }
 
@@ -64,11 +57,11 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"1 : Int : Real",
       List(
-        v(2) === IntType,
-        v(1) === v(2),
-        v(1) === IntType,
+        v(0) === DblType,
         v(0) === v(1),
-        v(0) === DblType
+        v(1) === IntType,
+        v(1) === v(2),
+        v(2) === IntType
       ))
   }
 
@@ -76,9 +69,9 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"do 1; true end",
       List(
+        v(0) === v(2),
         v(1) === IntType,
-        v(2) === BoolType,
-        v(0) === v(2)
+        v(2) === BoolType
       ))
   }
 
@@ -86,18 +79,18 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"do let a = 1; a end",
       List(
-        v(2) === IntType,
+        v(0) === v(1),
         v(1) === v(2),
-        v(0) === v(1)
+        v(2) === IntType
       ))
 
     assertSuccess(
       expr"do let a: Boolean = 1; a end",
       List(
-        v(2) === IntType,
+        v(0) === v(1),
         v(1) === BoolType,
         v(1) === v(2),
-        v(0) === v(1)
+        v(2) === IntType
       ))
   }
 
@@ -105,18 +98,18 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"(a, b) -> a(b)",
       List(
-        v(3) === FuncType(List(v(2)), v(1)),
-        v(0) === v(3)
+        v(0) === v(3),
+        v(3) === FuncType(List(v(2)), v(1))
       ))
 
     assertSuccess(
       expr"(a: Int -> String, b: Real): Boolean -> a(b)",
       List(
-        v(3) === FuncType(List(v(2)), v(1)),
+        v(0) === BoolType,
+        v(0) === v(3),
         v(1) === FuncType(List(IntType), StrType),
         v(2) === DblType,
-        v(0) === BoolType,
-        v(0) === v(3)
+        v(3) === FuncType(List(v(2)), v(1))
       ))
   }
 
@@ -133,12 +126,12 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       end
       """,
       List(
-        v(2) === IntType,
+        v(0) === v(1),
         v(1) === v(2),
-        v(5) === StrType,
-        v(4) === v(5),
+        v(2) === IntType,
         v(3) === v(4),
-        v(0) === v(1)
+        v(4) === v(5),
+        v(5) === StrType
       ))
   }
 
@@ -151,13 +144,13 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       end
       """,
       List(
-        v(5) === FuncType(List(v(4)), v(3)),
-        v(2) === v(5),
+        v(0) === v(6),
         v(1) === v(2),
-        v(7) === IntType,
-        v(8) === IntType,
+        v(2) === v(5),
+        v(5) === FuncType(List(v(4)), v(3)),
         v(6) === FuncType(List(v(7), v(8)), v(1)),
-        v(0) === v(6)
+        v(7) === IntType,
+        v(8) === IntType
       ))
   }
 
@@ -171,15 +164,15 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       end
       """,
       List(
-        v(5)  === FuncType(List(v(4)), v(2)),
-        v(3)  === v(5),
+        v(0)  === v(9),
         v(1)  === v(3),
-        v(8)  === FuncType(List(v(7)), v(1)),
-        v(6)  === v(8),
         v(2)  === v(6),
-        v(10) === IntType,
+        v(3)  === v(5),
+        v(5)  === FuncType(List(v(4)), v(2)),
+        v(6)  === v(8),
+        v(8)  === FuncType(List(v(7)), v(1)),
         v(9)  === FuncType(List(v(10)), v(1)),
-        v(0)  === v(9)
+        v(10) === IntType
       ))
   }
 
@@ -197,8 +190,10 @@ object TypeGeneratorSuite extends SimpleTestSuite {
           Incorrect results from type checking:
           expr = $expr
           texpr = $texpr
-          actual = $actual
-          expected = $expected
+          actual =
+            ${actual.mkString("\n  ")}
+          expected =
+            ${expected.mkString("\n  ")}
           """)
 
       case Left(error) =>
@@ -224,7 +219,8 @@ object TypeGeneratorSuite extends SimpleTestSuite {
           Expected type checking to fail, but it succeeded:
           expr = $expr
           texpr = $texpr
-          actual = $actual
+          actual =
+            ${actual.mkString("\n  ")}
           """)
 
       case Left(actual)                =>

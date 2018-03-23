@@ -19,26 +19,17 @@ case object DblType extends ConcreteType
 case object NullType extends ConcreteType
 case object BoolType extends ConcreteType
 
-// object Type {
-//   def union(a: Type, b: Type): Type =
-//     (a, b) match {
-//       case (a, Top)             => Top
-//       case (Top, b)             => Top
-//       case (a, Bottom)          => a
-//       case (Bottom, b)          => b
-//       case (a, b) if a == b     => a
-//       case (Union(a), Union(b)) => Union(a ++ b)
-//       case (Union(a), b)        => Union(a + b)
-//       case (a, Union(b))        => Union(b + a)
-//       case (a, b)               => Union(Set(a, b))
-//     }
+object TypeVar {
+  implicit val ordering: Ordering[TypeVar] =
+    Ordering.by[TypeVar, Int](_.id)
+}
 
-//   implicit val monoid: Monoid[Type] =
-//     new Monoid[Type] {
-//       override def empty: Type =
-//         Bottom
-
-//       override def combine(x: Type, y: Type): Type =
-//         union(x, y)
-//     }
-// }
+object Type {
+  implicit val ordering: Ordering[Type] =
+    Ordering.fromLessThan[Type] {
+      case (a: TypeVar, b: TypeVar) => a.id < b.id
+      case (a, b: TypeVar)          => true
+      case (a: TypeVar, b)          => false
+      case (a, b)                   => a.toString < b.toString
+    }
+}

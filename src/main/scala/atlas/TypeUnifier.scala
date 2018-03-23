@@ -4,11 +4,16 @@ import atlas.syntax._
 
 case class Substitution(lhs: TypeVar, rhs: Type)
 
+object Substitution {
+  implicit val ordering: Ordering[Substitution] =
+    Ordering.by[Substitution, (TypeVar, Type)](c => (c.lhs, c.rhs))
+}
+
 object TypeUnifier {
   type Step[A] = Either[TypeError, A]
 
   def apply(constraints: List[Constraint]): Either[TypeError, List[Substitution]] =
-    unifyAll(constraints).map(_.toList.sortBy(_.lhs.id))
+    unifyAll(constraints).map(_.toList.sorted)
 
   def unifyAll(constraints: List[Constraint]): Step[Set[Substitution]] =
     constraints match {

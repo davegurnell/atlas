@@ -6,14 +6,18 @@ import cats.implicits._
 
 case class Constraint(lhs: Type, rhs: Type)
 
+object Constraint {
+  implicit val ordering: Ordering[Constraint] =
+    Ordering.by[Constraint, (Type, Type)](c => (c.lhs, c.rhs))
+}
+
 object TypeGenerator {
-  type Constraints = List[Constraint]
   type Step[A]     = Either[TypeError, A]
 
-  def apply(expr: TExpr): Either[TypeError, Constraints] =
-    doExpr(expr)
+  def apply(expr: TExpr): Either[TypeError, List[Constraint]] =
+    doExpr(expr).map(_.toList.sorted)
 
-  def doExpr(expr: TExpr): Step[Constraints] =
+  def doExpr(expr: TExpr): Step[Set[Constraint]] =
     expr match {
       case expr: TRefExpr    => doRef(expr)
       case expr: TLetExpr    => doLet(expr)
@@ -34,10 +38,10 @@ object TypeGenerator {
       case expr: TNullExpr   => doNull(expr)
     }
 
-  def doRef(ref: TRefExpr): Step[Constraints] =
+  def doRef(ref: TRefExpr): Step[Set[Constraint]] =
     assign()
 
-  def doLet(let: TLetExpr): Step[Constraints] =
+  def doLet(let: TLetExpr): Step[Set[Constraint]] =
     all(
       doExpr(let.expr),
       let.varType match {
@@ -53,14 +57,14 @@ object TypeGenerator {
       }
     )
 
-  def doApp(app: TAppExpr): Step[Constraints] =
+  def doApp(app: TAppExpr): Step[Set[Constraint]] =
     all(
       doExpr(app.func),
       app.args.traverse(doExpr).map(_.combineAll),
       assign(app.tpe === FuncType(app.args.map(_.tpe), app.func.tpe))
     )
 
-  def doInfix(infix: TInfixExpr): Step[Constraints] = {
+  def doInfix(infix: TInfixExpr): Step[Set[Constraint]] = {
     val funcType = infixType(infix.op)
     all(
       doExpr(infix.arg1),
@@ -91,7 +95,7 @@ object TypeGenerator {
       case InfixOp.Lte => FuncType(List(IntType, IntType), IntType)
     }
 
-  def doPrefix(prefix: TPrefixExpr): Step[Constraints] = {
+  def doPrefix(prefix: TPrefixExpr): Step[Set[Constraint]] = {
     val funcType = prefixType(prefix.op)
     all(
       doExpr(prefix.arg),
@@ -111,7 +115,7 @@ object TypeGenerator {
       case PrefixOp.Neg => FuncType(List(IntType), IntType)
     }
 
-  def doFunc(func: TFuncExpr): Step[Constraints] =
+  def doFunc(func: TFuncExpr): Step[Set[Constraint]] =
     all(
       doExpr(func.body),
       func.args.traverse(doFuncArg).map(_.combineAll),
@@ -129,7 +133,7 @@ object TypeGenerator {
       }
     )
 
-  def doFuncArg(arg: TFuncArg): Step[Constraints] =
+  def doFuncArg(arg: TFuncArg): Step[Set[Constraint]] =
     arg.argType match {
       case Some(argType) =>
         assign(
@@ -140,7 +144,7 @@ object TypeGenerator {
         assign()
     }
 
-  def doBlock(block: TBlockExpr): Step[Constraints] =
+  def doBlock(block: TBlockExpr): Step[Set[Constraint]] =
     all(
       block.stmts.traverse(doExpr).map(_.combineAll),
       doExpr(block.expr),
@@ -149,10 +153,10 @@ object TypeGenerator {
       )
     )
 
-  // def doSelect(select: SelectExpr): Step[Constraints] =
+  // def doSelect(select: SelectExpr): Step[Set[Constraint]] =
   //   ???
 
-  def doCond(cond: TCondExpr): Step[Constraints] =
+  def doCond(cond: TCondExpr): Step[Set[Constraint]] =
     all(
       doExpr(cond.test),
       doExpr(cond.trueArm),
@@ -164,7 +168,7 @@ object TypeGenerator {
       )
     )
 
-  def doCast(cast: TCastExpr): Step[Constraints] =
+  def doCast(cast: TCastExpr): Step[Set[Constraint]] =
     all(
       doExpr(cast.expr),
       assign(
@@ -173,25 +177,25 @@ object TypeGenerator {
       )
     )
 
-  // def doObj(obj: ObjExpr): Step[Constraints] =
+  // def doObj(obj: ObjExpr): Step[Set[Constraint]] =
   //   ???
 
-  // def doArr(arr: ArrExpr): Step[Constraints] =
+  // def doArr(arr: ArrExpr): Step[Set[Constraint]] =
   //   ???
 
-  def doStr(str: TStrExpr): Step[Constraints] =
+  def doStr(str: TStrExpr): Step[Set[Constraint]] =
     assign(str.tpe === StrType)
 
-  def doInt(int: TIntExpr): Step[Constraints] =
+  def doInt(int: TIntExpr): Step[Set[Constraint]] =
     assign(int.tpe === IntType)
 
-  def doDbl(dbl: TDblExpr): Step[Constraints] =
+  def doDbl(dbl: TDblExpr): Step[Set[Constraint]] =
     assign(dbl.tpe === DblType)
 
-  def doBool(bool: TBoolExpr): Step[Constraints] =
+  def doBool(bool: TBoolExpr): Step[Set[Constraint]] =
     assign(bool.tpe === BoolType)
 
-  def doNull(expr: TNullExpr): Step[Constraints] =
+  def doNull(expr: TNullExpr): Step[Set[Constraint]] =
     assign(expr.tpe === NullType)
 
   def pure[A](value: A): Step[A] =
@@ -227,10 +231,10 @@ object TypeGenerator {
   //              }
   //   } yield tpe
 
-  def assign(constraints: Constraint *): Step[Constraints] =
-    Right(constraints.toList)
+  def assign(constraints: Constraint *): Step[Set[Constraint]] =
+    Right(constraints.toSet)
 
-  def all(steps: Step[Constraints] *): Step[Constraints] =
+  def all(steps: Step[Set[Constraint]] *): Step[Set[Constraint]] =
     steps.toList.sequence.map(_.combineAll)
 
   // def replaceChain[A](chain: Chain)(body: Step[A]): Step[A] =

@@ -9,7 +9,7 @@ object TypeUnifierSuite extends SimpleTestSuite {
     val subst1 = Set(v(0) --> v(1))
     val subst2 = Set(v(1) --> v(2))
 
-    val actual   = TypeUnifier.compose(subst1, subst2).toList.sortBy(_.lhs.id)
+    val actual   = TypeUnifier.compose(subst1, subst2).toList.sorted
     val expected = List(v(0) --> v(2), v(1) --> v(2))
 
     assertEquals(actual, expected)
