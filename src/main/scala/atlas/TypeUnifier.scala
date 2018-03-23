@@ -13,7 +13,7 @@ object TypeUnifier {
   type Step[A] = Either[TypeError, A]
 
   def apply(constraints: List[Constraint]): Either[TypeError, List[Substitution]] =
-    unifyAll(constraints).map(_.toList.sorted)
+    Time("unifier")(unifyAll(constraints).map(_.toList.sorted))
 
   def unifyAll(constraints: List[Constraint]): Step[Set[Substitution]] =
     constraints match {

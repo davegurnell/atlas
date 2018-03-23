@@ -10,7 +10,7 @@ object TypeAnnotator {
   type Step[A] = EitherT[State[Env, ?], TypeError, A]
 
   def apply(expr: Expr): Either[TypeError, TExpr] =
-    doExpr(expr).value.runA((0, ScopeChain.create)).value
+    Time("annotator")(doExpr(expr).value.runA((0, ScopeChain.create)).value)
 
   def doExpr(expr: Expr): Step[TExpr] =
     expr match {

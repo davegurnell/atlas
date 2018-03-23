@@ -12,10 +12,10 @@ object Constraint {
 }
 
 object TypeGenerator {
-  type Step[A]     = Either[TypeError, A]
+  type Step[A] = Either[TypeError, A]
 
   def apply(expr: TExpr): Either[TypeError, List[Constraint]] =
-    doExpr(expr).map(_.toList.sorted)
+    Time("generator")(doExpr(expr).map(_.toList.sorted))
 
   def doExpr(expr: TExpr): Step[Set[Constraint]] =
     expr match {
