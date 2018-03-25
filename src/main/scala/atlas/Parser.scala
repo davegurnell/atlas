@@ -1,19 +1,15 @@
 package atlas
 
 import fastparse.all._
+import fastparse.parsers.Combinators.Rule
 
 object Parser {
-  import Ast._
-
   object parsers extends AllParsers
 
   case class Error(failure: Parsed.Failure)
 
   def expr(code: String): Either[Error, Expr] =
     parse(parsers.exprToEnd, code)
-
-  def stmt(code: String): Either[Error, Stmt] =
-    parse(parsers.stmtToEnd, code)
 
   def prog(code: String): Either[Error, Expr] =
     parse(parsers.progToEnd, code)
@@ -30,9 +26,6 @@ object Parser {
 }
 
 trait AllParsers {
-  import Ast._
-  import Ast.Literal._
-
   val alpha: Parser[Unit] =
     P(CharIn("_$", 'a' to 'z', 'A' to 'Z'))
 
@@ -54,8 +47,11 @@ trait AllParsers {
   val whitespace: Parser[Unit] =
     P(" " | "\t")
 
-  val comment: Parser[Unit] =
+  val lineComment: Parser[Unit] =
     P("#" ~ CharsWhile(_ != '\n', min = 0) ~ &(newline | End))
+
+  val comment: Parser[Unit] =
+    P(lineComment)
 
   val escape: Parser[Unit] =
     P("\\" ~ ((!(newline | hexDigit) ~ AnyChar) | (hexDigit.rep(min = 1, max = 6) ~ whitespace.?)))
@@ -103,7 +99,7 @@ trait AllParsers {
   val infixOps: List[Parser[InfixOp]] = {
     import InfixOp._
     def op(id: String, op: InfixOp): Parser[InfixOp] =
-      P(id).map(_ => op)
+      Rule(id, () => id).map(_ => op)
     List(
       op("||", Or),
       op("&&", And),
@@ -117,7 +113,7 @@ trait AllParsers {
   val prefixOp: Parser[PrefixOp] = {
     import PrefixOp._
     def op(id: String, op: PrefixOp): Parser[PrefixOp] =
-      P(id).map(_ => op)
+      Rule(id, () => id).map(_ => op)
     op("+", Pos) | op("-", Neg) | op("!", Not)
   }
 
@@ -151,8 +147,8 @@ trait AllParsers {
     P(doubleQuoted | singleQuoted)
   }
 
-  def ref(p: Parser[Unit]): Parser[Ref] =
-    P(p.!.map(Ref))
+  def ref(p: Parser[Unit]): Parser[RefExpr] =
+    P(p.!.map(RefExpr))
 
   // -----
 
@@ -162,39 +158,24 @@ trait AllParsers {
   val exprToEnd: Parser[Expr] =
     P(toEnd(expr))
 
-  val stmtToEnd: Parser[Stmt] =
-    P(toEnd(stmt))
-
   val progToEnd: Parser[Expr] =
     P(toEnd(prog))
 
   // -----
 
-  val progBodyExpr: Parser[(Seq[Stmt], Expr)] =
-    P(expr)
-      .map(e => (Seq.empty[Stmt], e))
-
-  val progBodyStmt: Parser[(Seq[Stmt], Expr)] =
-    P(stmt ~ nl ~ progBody)
-      .map { case (s, (ss, e)) => (s +: ss, e) }
-
-  val progBody: Parser[(Seq[Stmt], Expr)] =
-    P(progBodyExpr | progBodyStmt)
-
   val prog: Parser[Expr] =
-    P(progBody)
-      .map { case (stmts, expr) => Block(stmts.toList, expr) }
+    P(stmt.rep(min = 1, sep = nl)).flatMap(validateBlock)
 
   // -----
 
-  val stmt: Parser[Stmt] =
-    P(defn | expr.map(Ast.ExprStmt))
+  val stmt: Parser[Expr] =
+    P(let | expr)
 
   // -----
 
-  val defn: Parser[DefnStmt] =
+  val let: Parser[Expr] =
     P(letKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ expr)
-      .map { case (name, expr) => DefnStmt(name, expr) }
+      .map { case (name, expr) => LetExpr(name, expr) }
 
   // -----
 
@@ -203,20 +184,15 @@ trait AllParsers {
 
   // -----
 
-  val blockBodyExpr: Parser[(Seq[Stmt], Expr)] =
-    P(expr ~ ws ~ endKw.~/)
-      .map(e => (Seq.empty[Stmt], e))
-
-  val blockBodyStmt: Parser[(Seq[Stmt], Expr)] =
-    P(stmt ~ nl ~ blockBody)
-      .map { case (s, (ss, e)) => (s +: ss, e) }
-
-  val blockBody: Parser[(Seq[Stmt], Expr)] =
-    P(blockBodyExpr | blockBodyStmt)
+  def validateBlock(stmts: Seq[Expr]): Parser[Expr] =
+    (stmts.init, stmts.last) match {
+      case (stmts, expr: LetExpr) => Fail // BlockExpr(stmts, expr)
+      case (stmts, expr)          => Pass.map(_ => BlockExpr(stmts.toList, expr))
+    }
 
   val blockHit: Parser[Expr] =
-    P(doKw ~ ws ~/ blockBody)
-      .map { case (stmts, expr) => Block(stmts.toList, expr) }
+    P(doKw ~ ws ~ stmt.rep(min = 1, sep = nl) ~ ws ~ endKw)
+      .flatMap(validateBlock)
 
   val block: Parser[Expr] =
     P(blockHit | cond)
@@ -225,7 +201,7 @@ trait AllParsers {
 
   val condHit: Parser[Expr] =
     P(ifKw ~ ws ~ expr ~ ws ~ thenKw ~ ws ~ expr ~ ws ~ elseKw ~ ws ~ expr)
-      .map { case (test, ifTrue, ifFalse) => Cond(test, ifTrue, ifFalse) }
+      .map { case (test, ifTrue, ifFalse) => CondExpr(test, ifTrue, ifFalse) }
 
   val cond: Parser[Expr] =
     P(condHit | infix)
@@ -237,7 +213,7 @@ trait AllParsers {
       case (head, tail) =>
         tail.foldLeft(head) { (a, pair) =>
           val (op, b) = pair
-          Infix(op, a, b)
+          InfixExpr(op, a, b)
         }
     }
 
@@ -248,7 +224,7 @@ trait AllParsers {
 
   val prefixHit: Parser[Expr] =
     P(prefixOp ~ ws ~ prefix)
-      .map { case (op, arg) => Prefix(op, arg) }
+      .map { case (op, arg) => PrefixExpr(op, arg) }
 
   val prefix: Parser[Expr] =
     P(prefixHit | select)
@@ -257,26 +233,29 @@ trait AllParsers {
 
   val select: Parser[Expr] =
     P(apply ~ (ws ~ "." ~ ws ~ ident).rep)
-      .map { case (head, tail) => tail.foldLeft(head)(Select) }
+      .map { case (head, tail) => tail.foldLeft(head)(SelectExpr) }
 
   // -----
 
   val applyHit: Parser[Expr] =
     P(ident ~ ws ~ "(" ~/ ws ~ expr.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")")
-      .map { case (name, args) => Apply(Ref(name), args.toList) }
+      .map { case (name, args) => AppExpr(RefExpr(name), args.toList) }
 
   val apply: Parser[Expr] =
     P(applyHit | func)
 
   // -----
 
+  val arg: Parser[FuncArg] =
+    P(ident).map(FuncArg)
+
   val parenFuncHit: Parser[Expr] =
-    P("(" ~ ws ~ ident.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (argNames, expr) => Func(argNames.toList, expr) }
+    P("(" ~ ws ~ arg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
+      .map { case (args, expr) => FuncExpr(args.toList, expr) }
 
   val noParenFuncHit: Parser[Expr] =
     P(ident ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (argName, expr) => Func(List(argName), expr) }
+      .map { case (name, expr) => FuncExpr(List(FuncArg(name)), expr) }
 
   val func: Parser[Expr] =
     P(parenFuncHit | noParenFuncHit | obj)
@@ -289,7 +268,7 @@ trait AllParsers {
   val objHit: Parser[Expr] =
     P("{" ~ ws ~/ field.rep(sep = ws ~ "," ~ ws.~/) ~ ws ~ "}".~/)
       .map(_.toList)
-      .map(Obj)
+      .map(ObjExpr)
 
   val obj: Parser[Expr] =
     P(objHit | arr)
@@ -299,7 +278,7 @@ trait AllParsers {
   val arrHit: Parser[Expr] =
     P("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/)
       .map(_.toList)
-      .map(Arr)
+      .map(ArrExpr)
 
   val arr: Parser[Expr] =
     P(arrHit | paren)
@@ -318,23 +297,23 @@ trait AllParsers {
     P(str | double | int | trueExpr | falseExpr | nullExpr | ref)
 
   val str: Parser[Expr] =
-    P(stringToken).map(Str)
+    P(stringToken).map(StrExpr)
 
   val double: Parser[Expr] =
-    P(doubleToken).map(_.toDouble).map(Real)
+    P(doubleToken).map(_.toDouble).map(DblExpr)
 
   val int: Parser[Expr] =
-    P(intToken).map(_.toInt).map(Intr)
+    P(intToken).map(_.toInt).map(IntExpr)
 
   val trueExpr: Parser[Expr] =
-    P(trueKw).map(_ => True)
+    P(trueKw).map(_ => BoolExpr(true))
 
   val falseExpr: Parser[Expr] =
-    P(falseKw).map(_ => False)
+    P(falseKw).map(_ => BoolExpr(false))
 
   val nullExpr: Parser[Expr] =
-    P(nullKw).map(_ => Null)
+    P(nullKw).map(_ => NullExpr)
 
-  val ref: Parser[Ref] =
-    P(ident.map(Ref))
+  val ref: Parser[Expr] =
+    P(ident.map(RefExpr))
 }

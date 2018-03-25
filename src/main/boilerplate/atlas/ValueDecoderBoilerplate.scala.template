@@ -12,16 +12,16 @@ trait ValueDecoderBoilerplate {
 
   [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] = {
     pure {
-      case closure: Value.Closure =>
+      case closure: Closure =>
         Right { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
           Interpreter.applyClosure(closure, args).unsafeUnpack[R]
         }
 
-      case native: Value.Native =>
+      case native: Native =>
         Right { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
-          native.func(args).unsafeUnpack[R]
+          native.run(args).unsafeUnpack[R]
         }
 
       case value =>

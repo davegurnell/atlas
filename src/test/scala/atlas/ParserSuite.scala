@@ -127,266 +127,268 @@ object TokenParserSuite extends SimpleTestSuite with AllParsers with ParserSuite
 object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
   import PrefixOp._
   import InfixOp._
-  import Ast._
-  import Ast.Literal._
 
   object assert extends Assertions(expr)
 
   test("null") {
-    assert.complete("null", Null)
+    assert.complete("null", NullExpr)
   }
 
   test("boolean") {
-    assert.complete("true", True)
-    assert.complete("false", False)
+    assert.complete("true", BoolExpr(true))
+    assert.complete("false", BoolExpr(false))
   }
 
   test("number") {
-    assert.complete("123", Intr(123))
-    assert.complete("123.456", Real(123.456))
-    assert.partial("123 . 456", Intr(123), 3)
+    assert.complete("123", IntExpr(123))
+    assert.complete("123.456", DblExpr(123.456))
+    assert.partial("123 . 456", IntExpr(123), 3)
   }
 
   test("string") {
-    assert.complete("'dave'", Str("dave"))
-    assert.complete("\"dave\"", Str("dave"))
-    assert.complete("'\"dave\"'", Str("\"dave\""))
-    assert.complete("\"'dave'\"", Str("'dave'"))
+    assert.complete("'dave'", StrExpr("dave"))
+    assert.complete("\"dave\"", StrExpr("dave"))
+    assert.complete("'\"dave\"'", StrExpr("\"dave\""))
+    assert.complete("\"'dave'\"", StrExpr("'dave'"))
   }
 
   test("array") {
     assert.complete(
       "[ 1, 2 + 3, 4 ]",
-      Arr(List(Intr(1), Infix(Add, Intr(2), Intr(3)), Intr(4))))
+      ArrExpr(List(IntExpr(1), InfixExpr(Add, IntExpr(2), IntExpr(3)), IntExpr(4))))
 
     assert.complete(
       "[1,2+3,4]",
-      Arr(List(Intr(1), Infix(Add, Intr(2), Intr(3)), Intr(4))))
+      ArrExpr(List(IntExpr(1), InfixExpr(Add, IntExpr(2), IntExpr(3)), IntExpr(4))))
 
     assert.complete(
       "[ null , [ true && false ] , false ]",
-      Arr(List(Null, Arr(List(Infix(And, True, False))), False)))
+      ArrExpr(List(NullExpr, ArrExpr(List(InfixExpr(And, BoolExpr(true), BoolExpr(false)))), BoolExpr(false))))
 
     assert.complete(
       "[null,[true&&false],false]",
-      Arr(List(Null, Arr(List(Infix(And, True, False))), False)))
+      ArrExpr(List(NullExpr, ArrExpr(List(InfixExpr(And, BoolExpr(true), BoolExpr(false)))), BoolExpr(false))))
   }
 
   test("object") {
     assert.complete(
       "{ foo : null , \"'bar'\" : 1 + 2 , baz : true && false}",
-      Obj(List(
-        "foo" -> Null,
-        "'bar'" -> Infix(Add, Intr(1), Intr(2)),
-        "baz" -> Infix(And, True, False))))
+      ObjExpr(List(
+        "foo" -> NullExpr,
+        "'bar'" -> InfixExpr(Add, IntExpr(1), IntExpr(2)),
+        "baz" -> InfixExpr(And, BoolExpr(true), BoolExpr(false)))))
 
     assert.complete(
       "{foo:null,\"'bar'\":1+2,baz:true&&false}",
-      Obj(List(
-        "foo" -> Null,
-        "'bar'" -> Infix(Add, Intr(1), Intr(2)),
-        "baz" -> Infix(And, True, False))))
+      ObjExpr(List(
+        "foo" -> NullExpr,
+        "'bar'" -> InfixExpr(Add, IntExpr(1), IntExpr(2)),
+        "baz" -> InfixExpr(And, BoolExpr(true), BoolExpr(false)))))
   }
 
   test("ref") {
-    assert.complete("i", Ref("i"))
+    assert.complete("i", RefExpr("i"))
     assert.failure("if", 0)
-    assert.complete("iff", Ref("iff"))
+    assert.complete("iff", RefExpr("iff"))
   }
 
   test("cond") {
     assert.complete(
       "if a then b else c",
-      Cond(
-        Ref("a"),
-        Ref("b"),
-        Ref("c")))
+      CondExpr(
+        RefExpr("a"),
+        RefExpr("b"),
+        RefExpr("c")))
 
     assert.complete(
       "ifathenbelsec",
-      Ref("ifathenbelsec"))
+      RefExpr("ifathenbelsec"))
 
     assert.complete(
       "if(a)then(b)else(c)",
-      Cond(
-        Ref("a"),
-        Ref("b"),
-        Ref("c")))
+      CondExpr(
+        RefExpr("a"),
+        RefExpr("b"),
+        RefExpr("c")))
 
     assert.complete(
       "if a > b then c + d else e + f",
-      Cond(
-        Infix(Gt, Ref("a"), Ref("b")),
-        Infix(Add, Ref("c"), Ref("d")),
-        Infix(Add, Ref("e"), Ref("f"))))
+      CondExpr(
+        InfixExpr(Gt, RefExpr("a"), RefExpr("b")),
+        InfixExpr(Add, RefExpr("c"), RefExpr("d")),
+        InfixExpr(Add, RefExpr("e"), RefExpr("f"))))
   }
 
   test("call") {
     assert.complete(
       "add ( a , b , c )",
-      Apply(Ref("add"), List(Ref("a"), Ref("b"), Ref("c"))))
+      AppExpr(RefExpr("add"), List(RefExpr("a"), RefExpr("b"), RefExpr("c"))))
 
     assert.complete(
       "add(a,b,c)",
-      Apply(Ref("add"), List(Ref("a"), Ref("b"), Ref("c"))))
+      AppExpr(RefExpr("add"), List(RefExpr("a"), RefExpr("b"), RefExpr("c"))))
   }
 
   test("paren") {
-    assert.complete("( a )", Ref("a"))
-    assert.complete("(a)", Ref("a"))
+    assert.complete("( a )", RefExpr("a"))
+    assert.complete("(a)", RefExpr("a"))
   }
 
   test("prefix") {
-    assert.complete("- a", Prefix(Neg, Ref("a")))
-    assert.complete("+a", Prefix(Pos, Ref("a")))
-    assert.complete("!a", Prefix(Not, Ref("a")))
+    assert.complete("- a", PrefixExpr(Neg, RefExpr("a")))
+    assert.complete("+a", PrefixExpr(Pos, RefExpr("a")))
+    assert.complete("!a", PrefixExpr(Not, RefExpr("a")))
 
     assert.complete(
       "+ a + + b",
-      Infix(
+      InfixExpr(
         Add,
-        Prefix(Pos, Ref("a")),
-        Prefix(Pos, Ref("b"))))
+        PrefixExpr(Pos, RefExpr("a")),
+        PrefixExpr(Pos, RefExpr("b"))))
   }
 
   test("infix") {
-    assert.complete("a || b", Infix(Or, Ref("a"), Ref("b")))
-    assert.complete("a && b", Infix(And, Ref("a"), Ref("b")))
-    assert.complete("a == b", Infix(Eq, Ref("a"), Ref("b")))
-    assert.complete("a != b", Infix(Ne, Ref("a"), Ref("b")))
-    assert.complete("a > b", Infix(Gt, Ref("a"), Ref("b")))
-    assert.complete("a < b", Infix(Lt, Ref("a"), Ref("b")))
-    assert.complete("a >= b", Infix(Gte, Ref("a"), Ref("b")))
-    assert.complete("a <= b", Infix(Lte, Ref("a"), Ref("b")))
-    assert.complete("a + b", Infix(Add, Ref("a"), Ref("b")))
-    assert.complete("a - b", Infix(Sub, Ref("a"), Ref("b")))
-    assert.complete("a * b", Infix(Mul, Ref("a"), Ref("b")))
-    assert.complete("a / b", Infix(Div, Ref("a"), Ref("b")))
+    assert.complete("a || b", InfixExpr(Or, RefExpr("a"), RefExpr("b")))
+    assert.complete("a && b", InfixExpr(And, RefExpr("a"), RefExpr("b")))
+    assert.complete("a == b", InfixExpr(Eq, RefExpr("a"), RefExpr("b")))
+    assert.complete("a != b", InfixExpr(Ne, RefExpr("a"), RefExpr("b")))
+    assert.complete("a > b", InfixExpr(Gt, RefExpr("a"), RefExpr("b")))
+    assert.complete("a < b", InfixExpr(Lt, RefExpr("a"), RefExpr("b")))
+    assert.complete("a >= b", InfixExpr(Gte, RefExpr("a"), RefExpr("b")))
+    assert.complete("a <= b", InfixExpr(Lte, RefExpr("a"), RefExpr("b")))
+    assert.complete("a + b", InfixExpr(Add, RefExpr("a"), RefExpr("b")))
+    assert.complete("a - b", InfixExpr(Sub, RefExpr("a"), RefExpr("b")))
+    assert.complete("a * b", InfixExpr(Mul, RefExpr("a"), RefExpr("b")))
+    assert.complete("a / b", InfixExpr(Div, RefExpr("a"), RefExpr("b")))
 
-    assert.complete("a||b", Infix(Or, Ref("a"), Ref("b")))
-    assert.complete("a&&b", Infix(And, Ref("a"), Ref("b")))
-    assert.complete("a==b", Infix(Eq, Ref("a"), Ref("b")))
-    assert.complete("a!=b", Infix(Ne, Ref("a"), Ref("b")))
-    assert.complete("a>b", Infix(Gt, Ref("a"), Ref("b")))
-    assert.complete("a<b", Infix(Lt, Ref("a"), Ref("b")))
-    assert.complete("a>=b", Infix(Gte, Ref("a"), Ref("b")))
-    assert.complete("a<=b", Infix(Lte, Ref("a"), Ref("b")))
-    assert.complete("a+b", Infix(Add, Ref("a"), Ref("b")))
-    assert.complete("a-b", Infix(Sub, Ref("a"), Ref("b")))
-    assert.complete("a*b", Infix(Mul, Ref("a"), Ref("b")))
-    assert.complete("a/b", Infix(Div, Ref("a"), Ref("b")))
+    assert.complete("a||b", InfixExpr(Or, RefExpr("a"), RefExpr("b")))
+    assert.complete("a&&b", InfixExpr(And, RefExpr("a"), RefExpr("b")))
+    assert.complete("a==b", InfixExpr(Eq, RefExpr("a"), RefExpr("b")))
+    assert.complete("a!=b", InfixExpr(Ne, RefExpr("a"), RefExpr("b")))
+    assert.complete("a>b", InfixExpr(Gt, RefExpr("a"), RefExpr("b")))
+    assert.complete("a<b", InfixExpr(Lt, RefExpr("a"), RefExpr("b")))
+    assert.complete("a>=b", InfixExpr(Gte, RefExpr("a"), RefExpr("b")))
+    assert.complete("a<=b", InfixExpr(Lte, RefExpr("a"), RefExpr("b")))
+    assert.complete("a+b", InfixExpr(Add, RefExpr("a"), RefExpr("b")))
+    assert.complete("a-b", InfixExpr(Sub, RefExpr("a"), RefExpr("b")))
+    assert.complete("a*b", InfixExpr(Mul, RefExpr("a"), RefExpr("b")))
+    assert.complete("a/b", InfixExpr(Div, RefExpr("a"), RefExpr("b")))
 
     assert.complete(
       "a + b + c",
-      Infix(
+      InfixExpr(
         Add,
-        Infix(
+        InfixExpr(
           Add,
-          Ref("a"),
-          Ref("b")),
-        Ref("c")))
+          RefExpr("a"),
+          RefExpr("b")),
+        RefExpr("c")))
 
     assert.complete(
       "a * b + c",
-      Infix(
+      InfixExpr(
         Add,
-        Infix(
+        InfixExpr(
           Mul,
-          Ref("a"),
-          Ref("b")),
-        Ref("c")))
+          RefExpr("a"),
+          RefExpr("b")),
+        RefExpr("c")))
 
     assert.complete(
       "a + b * c",
-      Infix(
+      InfixExpr(
         Add,
-        Ref("a"),
-        Infix(
+        RefExpr("a"),
+        InfixExpr(
           Mul,
-          Ref("b"),
-          Ref("c"))))
+          RefExpr("b"),
+          RefExpr("c"))))
 
     assert.complete(
       "( a + b ) * c",
-      Infix(
+      InfixExpr(
         Mul,
-        Infix(
+        InfixExpr(
           Add,
-          Ref("a"),
-          Ref("b")),
-        Ref("c")))
+          RefExpr("a"),
+          RefExpr("b")),
+        RefExpr("c")))
 
     assert.complete(
       "a * (b + c)",
-      Infix(
+      InfixExpr(
         Mul,
-        Ref("a"),
-        Infix(
+        RefExpr("a"),
+        InfixExpr(
           Add,
-          Ref("b"),
-          Ref("c"))))
+          RefExpr("b"),
+          RefExpr("c"))))
 
     assert.complete(
       "a <= b && c >= d",
-      Infix(
+      InfixExpr(
         And,
-        Infix(
+        InfixExpr(
           Lte,
-          Ref("a"),
-          Ref("b")),
-        Infix(
+          RefExpr("a"),
+          RefExpr("b")),
+        InfixExpr(
           Gte,
-          Ref("c"),
-          Ref("d"))))
+          RefExpr("c"),
+          RefExpr("d"))))
 
     assert.complete(
       "(a) + (b)",
-      Infix(
+      InfixExpr(
         Add,
-        Ref("a"),
-        Ref("b")))
+        RefExpr("a"),
+        RefExpr("b")))
 
     assert.complete(
       "+a + +b",
-      Infix(
+      InfixExpr(
         Add,
-        Prefix(Pos, Ref("a")),
-        Prefix(Pos, Ref("b"))))
+        PrefixExpr(Pos, RefExpr("a")),
+        PrefixExpr(Pos, RefExpr("b"))))
   }
 
   test("select") {
     assert.complete(
       "a . b",
-      Select(Ref("a"), "b"))
+      SelectExpr(RefExpr("a"), "b"))
 
     assert.complete(
       "a.b.c",
-      Select(Select(Ref("a"), "b"), "c"))
+      SelectExpr(SelectExpr(RefExpr("a"), "b"), "c"))
 
     assert.complete(
       "a.b+c.d",
-      Infix(
+      InfixExpr(
         Add,
-        Select(Ref("a"), "b"),
-        Select(Ref("c"), "d")))
+        SelectExpr(RefExpr("a"), "b"),
+        SelectExpr(RefExpr("c"), "d")))
   }
 
   test("block") {
     assert.complete(
       "do a end",
-      Block(Nil, Ref("a")))
+      BlockExpr(Nil, RefExpr("a")))
 
     assert.complete(
       "doaend",
-      Ref("doaend"))
+      RefExpr("doaend"))
 
     assert.complete(
       i"""do a
       b end
       """,
-      Block(
-        List(ExprStmt(Ref("a"))),
-        Ref("b")))
+      BlockExpr(
+        List(RefExpr("a")),
+        RefExpr("b")))
+
+    assert.failure(
+      "do let a = 1 end",
+      16)
 
     assert.complete(
       i"""
@@ -396,86 +398,77 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         c
       end
       """,
-      Block(
+      BlockExpr(
         List(
-          ExprStmt(Ref("a")),
-          ExprStmt(Ref("b"))),
-        Ref("c")))
+          RefExpr("a"),
+          RefExpr("b")),
+        RefExpr("c")))
 
     assert.complete(
       "do;a;b;c;end",
-      Block(
+      BlockExpr(
         List(
-          ExprStmt(Ref("a")),
-          ExprStmt(Ref("b"))),
-        Ref("c")))
+          RefExpr("a"),
+          RefExpr("b")),
+        RefExpr("c")))
 
-    assert.failure("do a b c end", 3)
+    assert.failure("do a b c end", 0)
   }
 
   test("func") {
     assert.complete(
       "( a, b ) -> a + b",
-      Func(
-        List("a", "b"),
-        Infix(Add, Ref("a"), Ref("b"))))
-
-    assert.complete(
-      "(a,b)->a+b",
-      Func(
-        List("a", "b"),
-        Infix(Add, Ref("a"), Ref("b"))))
+      FuncExpr(
+        List(FuncArg("a"), FuncArg("b")),
+        InfixExpr(Add, RefExpr("a"), RefExpr("b"))))
 
     assert.complete(
       "a -> b -> a + b",
-      Func(
-        List("a"),
-        Func(
-          List("b"),
-          Infix(Add, Ref("a"), Ref("b")))))
+      FuncExpr(
+        List(FuncArg("a")),
+        FuncExpr(
+          List(FuncArg("b")),
+          InfixExpr(Add, RefExpr("a"), RefExpr("b")))))
 
     assert.complete(
       "a -> b -> a.c + b.d",
-      Func(
-        List("a"),
-        Func(
-          List("b"),
-          Infix(Add,
-            Select(Ref("a"), "c"),
-            Select(Ref("b"), "d")))))
+      FuncExpr(
+        List(FuncArg("a")),
+        FuncExpr(
+          List(FuncArg("b")),
+          InfixExpr(Add,
+            SelectExpr(RefExpr("a"), "c"),
+            SelectExpr(RefExpr("b"), "d")))))
   }
 }
 
 object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
-  import Ast._
-  import Ast.Literal._
-  import InfixOp._
-
   object assert extends Assertions(stmt)
 
   test("defn") {
-    assert.complete("let a = b", DefnStmt("a", Ref("b")))
+    assert.complete("let a = b", LetExpr("a", RefExpr("b")))
 
-    assert.complete("let a = b -> c", DefnStmt(
+    assert.complete("let a = b -> c", LetExpr(
       "a",
-      Func(List("b"), Ref("c"))))
+      FuncExpr(
+        List(FuncArg("b")),
+        RefExpr("c"))))
 
     assert.complete(
       i"""
       let add = ( a, b ) -> a + b
       """,
-      DefnStmt(
+      LetExpr(
         "add",
-        Func(
-          List("a", "b"),
-          Infix(Add, Ref("a"), Ref("b")))))
+        FuncExpr(
+          List(FuncArg("a"), FuncArg("b")),
+          InfixExpr(InfixOp.Add, RefExpr("a"), RefExpr("b")))))
   }
 
   test("expr") {
     assert.complete(
       "a + b",
-      ExprStmt(
-        Infix(Add, Ref("a"), Ref("b"))))
+      InfixExpr(InfixOp.Add, RefExpr("a"), RefExpr("b")))
   }
 }
 

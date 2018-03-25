@@ -2,23 +2,20 @@ package atlas
 
 object syntax {
   implicit class ValueEncoderOps[A](a: A) {
-    def toValue(implicit enc: ValueEncoder[A]): Value =
+    def toAtlas(implicit enc: ValueEncoder[A]): Value =
       enc(a)
   }
 
   implicit class ValueDecoderOps(value: Value) {
-    def as[A](implicit dec: ValueDecoder[A]): Either[RuntimeError, A] =
+    def toScala[A](implicit dec: ValueDecoder[A]): Either[RuntimeError, A] =
       dec(value)
   }
 
   implicit class AtlasStringOps(val ctx: StringContext) extends AnyVal {
-    def expr(args: Any *): Ast.Expr =
+    def expr(args: Any *): Expr =
       macro Macros.exprMacro
 
-    def stmt(args: Any *): Ast.Expr =
-      macro Macros.stmtMacro
-
-    def prog(args: Any *): Ast.Expr =
+    def prog(args: Any *): Expr =
       macro Macros.progMacro
   }
 }

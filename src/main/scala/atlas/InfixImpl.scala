@@ -1,6 +1,6 @@
 package atlas
 
-object InfixFunc {
+object InfixImpl {
   import Value._
 
   val add: Native =

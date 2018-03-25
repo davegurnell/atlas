@@ -1,6 +1,6 @@
 package atlas
 
-object PrefixFunc {
+object PrefixImpl {
   import Value._
 
   val pos: Native =

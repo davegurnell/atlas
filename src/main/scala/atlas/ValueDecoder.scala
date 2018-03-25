@@ -24,15 +24,13 @@ trait ValueDecoderFunctions {
 trait ValueDecoderInstances {
   self: ValueDecoderFunctions =>
 
-  import Value._
-
   implicit def valueDecoder: ValueDecoder[Value] =
     pure(_.asRight)
 
   implicit def listDecoder[A](implicit dec: ValueDecoder[A]): ValueDecoder[List[A]] =
     pure {
-      case Arr(values) => values.traverse(dec.apply)
-      case value       => Left(RuntimeError(s"Could not decode list: $value"))
+      case ArrVal(values) => values.traverse(dec.apply)
+      case value          => Left(RuntimeError(s"Could not decode list: $value"))
     }
 
   import io.circe.{Decoder, Json}
@@ -41,15 +39,14 @@ trait ValueDecoderInstances {
     pure { value =>
       def toJson(value: Value): Either[RuntimeError, Json] =
         value match {
-          case Null        => Right(Json.Null)
-          case True        => Right(Json.True)
-          case False       => Right(Json.False)
-          case Intr(num)   => Right(Json.fromInt(num))
-          case Real(num)   => Json.fromDouble(num).toRight(RuntimeError(s"Could not decode double: $num"))
-          case Str(str)    => Right(Json.fromString(str))
-          case Arr(items)  => items.traverse(toJson).map(Json.fromValues)
-          case Obj(fields) => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
-          case value: Func => Left(RuntimeError(s"Cannot decode function: $value"))
+          case NullVal        => Right(Json.Null)
+          case BoolVal(value) => Right(if(value) Json.True else Json.False)
+          case IntVal(num)    => Right(Json.fromInt(num))
+          case DblVal(num)    => Json.fromDouble(num).toRight(RuntimeError(s"Could not decode double: $num"))
+          case StrVal(str)    => Right(Json.fromString(str))
+          case ArrVal(items)  => items.traverse(toJson).map(Json.fromValues)
+          case ObjVal(fields) => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
+          case value: FuncVal => Left(RuntimeError(s"Cannot decode function: $value"))
         }
 
       toJson(value).flatMap(_.as[A].leftMap(err => RuntimeError(err.message)))

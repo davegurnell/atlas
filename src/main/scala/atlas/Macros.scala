@@ -5,20 +5,17 @@ import fastparse.all._
 import scala.reflect.macros.blackbox
 
 class Macros(val c: blackbox.Context) {
-  import c.universe.{Expr => _, _}
+  import c.universe.{Expr => _, Type => _, TypeRef => _, _}
 
   def exprMacro(args: Tree *): Tree =
-    macroImpl[Ast.Expr](Parser.parsers.exprToEnd, args)
-
-  def stmtMacro(args: Tree *): Tree =
-    macroImpl[Ast.Stmt](Parser.parsers.stmtToEnd, args)
+    macroImpl[Expr](Parser.parsers.exprToEnd, args)
 
   def progMacro(args: Tree *): Tree =
-    macroImpl[Ast.Expr](Parser.parsers.progToEnd, args)
+    macroImpl[Expr](Parser.parsers.progToEnd, args)
 
   private def macroImpl[A](parser: Parser[A], args: Seq[Tree])(implicit lift: Liftable[A]): Tree = {
     if(args.nonEmpty) {
-      c.abort(c.enclosingPosition, "Cannot interpolate in an expression literal")
+      c.abort(c.enclosingPosition, "String interpolation not supported!")
     } else {
       c.prefix.tree match {
         case q"$_($_(..$partTrees))" =>
@@ -70,76 +67,75 @@ class Macros(val c: blackbox.Context) {
     }.mkString
   }
 
+  val pkg = q"_root_.atlas"
+
   implicit def listLiftable[A](implicit itemLiftable: Liftable[A]): Liftable[List[A]] =
     new Liftable[List[A]] {
       def apply(list: List[A]): Tree =
         q"_root_.scala.List(..${list.map(itemLiftable.apply)})"
     }
 
-  implicit lazy val stmtLiftable: Liftable[Ast.Stmt] =
-    new Liftable[Ast.Stmt] {
-      def apply(stmt: Ast.Stmt): Tree =
-        stmt match {
-          case Ast.DefnStmt(name, expr) => q"_root_.atlas.Ast.DefnStmt($name, $expr)"
-          case Ast.ExprStmt(expr)       => q"_root_.arlas.Ast.ExprStmt($expr)"
-        }
-    }
-
-  implicit lazy val exprLiftable: Liftable[Ast.Expr] =
-    new Liftable[Ast.Expr] {
-      def apply(expr: Ast.Expr): Tree =
+  implicit lazy val exprLiftable: Liftable[Expr] =
+    new Liftable[Expr] {
+      def apply(expr: Expr): Tree =
         expr match {
-          case Ast.Ref(id)                  => q"_root_.atlas.Ast.Ref($id)"
-          case Ast.Block(stmts, expr)       => q"_root_.atlas.Ast.Block($stmts, $expr)"
-          case Ast.Select(expr, ref)        => q"_root_.atlas.Ast.Select($expr, $ref)"
-          case Ast.Cond(test, arm1, arm2)   => q"_root_.atlas.Ast.Cond($test, $arm1, $arm2)"
-          case Ast.Infix(op, arg1, arg2)    => q"_root_.atlas.Ast.Infix($op, $arg1, $arg2)"
-          case Ast.Prefix(op, arg)          => q"_root_.atlas.Ast.Prefix($op, $arg)"
-          case Ast.Apply(func, args)        => q"_root_.atlas.Ast.Apply($func, $args)"
-          case Ast.Literal.Func(args, body) => q"_root_.atlas.Ast.Literal.Func($args, $body)"
-          case Ast.Literal.Obj(fields)      => q"_root_.atlas.Ast.Literal.Obj($fields)"
-          case Ast.Literal.Arr(items)       => q"_root_.atlas.Ast.Literal.Arr($items)"
-          case Ast.Literal.Str(value)       => q"_root_.atlas.Ast.Literal.Str($value)"
-          case Ast.Literal.Intr(value)      => q"_root_.atlas.Ast.Literal.Intr($value)"
-          case Ast.Literal.Real(value)      => q"_root_.atlas.Ast.Literal.Real($value)"
-          case Ast.Literal.Null             => q"_root_.atlas.Ast.Literal.Null"
-          case Ast.Literal.True             => q"_root_.atlas.Ast.Literal.True"
-          case Ast.Literal.False            => q"_root_.atlas.Ast.Literal.False"
+          case RefExpr(id)                => q"$pkg.RefExpr($id)"
+          case LetExpr(name, expr)        => q"$pkg.LetExpr($name, $expr)"
+          case AppExpr(func, args)        => q"$pkg.AppExpr($func, $args)"
+          case InfixExpr(op, arg1, arg2)  => q"$pkg.InfixExpr($op, $arg1, $arg2)"
+          case PrefixExpr(op, arg)        => q"$pkg.PrefixExpr($op, $arg)"
+          case FuncExpr(args, body)       => q"$pkg.FuncExpr($args, $body)"
+          case BlockExpr(stmts, expr)     => q"$pkg.BlockExpr($stmts, $expr)"
+          case SelectExpr(expr, ref)      => q"$pkg.SelectExpr($expr, $ref)"
+          case CondExpr(test, arm1, arm2) => q"$pkg.CondExpr($test, $arm1, $arm2)"
+          case ObjExpr(fields)            => q"$pkg.ObjExpr($fields)"
+          case ArrExpr(items)             => q"$pkg.ArrExpr($items)"
+          case StrExpr(value)             => q"$pkg.StrExpr($value)"
+          case IntExpr(value)             => q"$pkg.IntExpr($value)"
+          case DblExpr(value)             => q"$pkg.DblExpr($value)"
+          case BoolExpr(value)            => q"$pkg.BoolExpr($value)"
+          case NullExpr                   => q"$pkg.NullExpr"
         }
     }
 
-  implicit val prefixOpLiftable: Liftable[PrefixOp] =
+  implicit lazy val argLiftable: Liftable[FuncArg] =
+    new Liftable[FuncArg] {
+      def apply(arg: FuncArg): Tree =
+        q"$pkg.FuncArg(${arg.argName})"
+    }
+
+  implicit lazy val prefixOpLiftable: Liftable[PrefixOp] =
     new Liftable[PrefixOp] {
       def apply(op: PrefixOp): Tree =
         op match {
-          case PrefixOp.Not => q"_root_.atlas.PrefixOp.Not"
-          case PrefixOp.Pos => q"_root_.atlas.PrefixOp.Pos"
-          case PrefixOp.Neg => q"_root_.atlas.PrefixOp.Neg"
+          case PrefixOp.Not => q"$pkg.PrefixOp.Not"
+          case PrefixOp.Pos => q"$pkg.PrefixOp.Pos"
+          case PrefixOp.Neg => q"$pkg.PrefixOp.Neg"
         }
     }
 
-  implicit val infixOpLiftable: Liftable[InfixOp] =
+  implicit lazy val infixOpLiftable: Liftable[InfixOp] =
     new Liftable[InfixOp] {
       def apply(op: InfixOp): Tree =
         op match {
-          case InfixOp.Add => q"_root_.atlas.InfixOp.Add"
-          case InfixOp.Sub => q"_root_.atlas.InfixOp.Sub"
-          case InfixOp.Mul => q"_root_.atlas.InfixOp.Mul"
-          case InfixOp.Div => q"_root_.atlas.InfixOp.Div"
-          case InfixOp.And => q"_root_.atlas.InfixOp.And"
-          case InfixOp.Or  => q"_root_.atlas.InfixOp.Or"
-          case InfixOp.Eq  => q"_root_.atlas.InfixOp.Eq"
-          case InfixOp.Ne  => q"_root_.atlas.InfixOp.Ne"
-          case InfixOp.Gt  => q"_root_.atlas.InfixOp.Gt"
-          case InfixOp.Lt  => q"_root_.atlas.InfixOp.Lt"
-          case InfixOp.Gte => q"_root_.atlas.InfixOp.Gte"
-          case InfixOp.Lte => q"_root_.atlas.InfixOp.Lte"
+          case InfixOp.Add => q"$pkg.InfixOp.Add"
+          case InfixOp.Sub => q"$pkg.InfixOp.Sub"
+          case InfixOp.Mul => q"$pkg.InfixOp.Mul"
+          case InfixOp.Div => q"$pkg.InfixOp.Div"
+          case InfixOp.And => q"$pkg.InfixOp.And"
+          case InfixOp.Or  => q"$pkg.InfixOp.Or"
+          case InfixOp.Eq  => q"$pkg.InfixOp.Eq"
+          case InfixOp.Ne  => q"$pkg.InfixOp.Ne"
+          case InfixOp.Gt  => q"$pkg.InfixOp.Gt"
+          case InfixOp.Lt  => q"$pkg.InfixOp.Lt"
+          case InfixOp.Gte => q"$pkg.InfixOp.Gte"
+          case InfixOp.Lte => q"$pkg.InfixOp.Lte"
         }
     }
 
-  implicit val fieldPairLiftable: Liftable[(String, Ast.Expr)] =
-    new Liftable[(String, Ast.Expr)] {
-      def apply(field: (String, Ast.Expr)): Tree = {
+  implicit lazy val fieldPairLiftable: Liftable[(String, Expr)] =
+    new Liftable[(String, Expr)] {
+      def apply(field: (String, Expr)): Tree = {
         val (name, expr) = field
         q"($name, $expr)"
       }

@@ -3,7 +3,12 @@ package atlas
 trait ValueEncoderBoilerplate {
   self: ValueEncoderFunctions =>
 
-  [#implicit def function1[[#A1#], R](implicit [#dec1: ValueDecoder[A1]#], enc: ValueEncoder[R]): ValueEncoder[([#A1#]) => R] =
+  [#implicit def function1[[#A1#], R](
+    implicit
+    [#argDec1: ValueDecoder[A1]#,
+    ],
+    resEnc: ValueEncoder[R]
+  ): ValueEncoder[([#A1#]) => R] =
     pure(func => Value.native(func))
   #
 

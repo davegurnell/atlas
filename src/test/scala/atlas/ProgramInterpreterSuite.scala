@@ -108,9 +108,9 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
     assertFailure(prog, env, expected)
   }
 
-  def assertSuccess[A](prog: Ast.Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =
+  def assertSuccess[A](prog: Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =
     assertEquals(Interpreter(prog, env).flatMap(dec.apply), Right(expected))
 
-  def assertFailure(prog: Ast.Expr, env: Env, expected: RuntimeError): Unit =
+  def assertFailure(prog: Expr, env: Env, expected: RuntimeError): Unit =
     assertEquals(Interpreter(prog, env), Left(expected))
 }
