@@ -4,7 +4,9 @@ import atlas.syntax._
 import cats.data.{EitherT, State}
 import cats.implicits._
 
-case class Constraint(lhs: Type, rhs: Type)
+case class Constraint(lhs: Type, rhs: Type) {
+  override def toString = s"$lhs === $rhs"
+}
 
 object Constraint {
   implicit val ordering: Ordering[Constraint] =
@@ -64,24 +66,19 @@ object TypeGenerator {
       assign(app.func.tpe === FuncType(app.args.map(_.tpe), app.tpe))
     )
 
-  def doInfix(infix: TInfixExpr): Step[Set[Constraint]] = {
-    val funcType = infixType(infix.op)
+  def doInfix(infix: TInfixExpr): Step[Set[Constraint]] =
     all(
       doExpr(infix.arg1),
       doExpr(infix.arg2),
-      assign(
-        infix.arg1.tpe === funcType.argTypes(0),
-        infix.arg2.tpe === funcType.argTypes(1),
-        infix.tpe      === funcType.returnType
-      )
+      assign(FuncType(List(infix.arg1.tpe, infix.arg2.tpe), infix.tpe) === infixType(infix.op))
     )
-  }
 
-  def infixType(op: InfixOp): FuncType =
+  def infixType(op: InfixOp): Type =
     // TODO: Make infix operators polymorphic!
     // TODO: Move infix operator type definitions out to external file
     op match {
-      case InfixOp.Add => FuncType(List(IntType, IntType), IntType)
+      case InfixOp.Add => FuncType(List(IntType, IntType), IntType) |
+                          FuncType(List(DblType, DblType), DblType)
       case InfixOp.Sub => FuncType(List(IntType, IntType), IntType)
       case InfixOp.Mul => FuncType(List(IntType, IntType), IntType)
       case InfixOp.Div => FuncType(List(IntType, IntType), IntType)
@@ -95,18 +92,13 @@ object TypeGenerator {
       case InfixOp.Lte => FuncType(List(IntType, IntType), BoolType)
     }
 
-  def doPrefix(prefix: TPrefixExpr): Step[Set[Constraint]] = {
-    val funcType = prefixType(prefix.op)
+  def doPrefix(prefix: TPrefixExpr): Step[Set[Constraint]] =
     all(
       doExpr(prefix.arg),
-      assign(
-        prefix.arg.tpe === funcType.argTypes(0),
-        prefix.tpe     === funcType.returnType
-      )
+      assign(FuncType(List(prefix.arg.tpe), prefix.tpe) === prefixType(prefix.op))
     )
-  }
 
-  def prefixType(op: PrefixOp): FuncType =
+  def prefixType(op: PrefixOp): Type =
     // TODO: Make prefix operators polymorphic!
     // TODO: Move prefix operator type definitions out to external file
     op match {

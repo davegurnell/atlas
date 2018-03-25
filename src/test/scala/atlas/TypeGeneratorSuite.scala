@@ -6,6 +6,8 @@ import minitest._
 import unindent._
 
 object TypeGeneratorSuite extends SimpleTestSuite {
+  import TypeGenerator.{infixType, prefixType}
+
   test("constant") {
     assertSuccess(
       expr"true",
@@ -36,8 +38,8 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"123 + 456 + 789",
       List(
-        v(0) === IntType,
-        v(1) === IntType,
+        FuncType(List(v(1), v(4)), v(0)) === infixType(InfixOp.Add),
+        FuncType(List(v(2), v(3)), v(1)) === infixType(InfixOp.Add),
         v(2) === IntType,
         v(3) === IntType,
         v(4) === IntType
@@ -48,8 +50,8 @@ object TypeGeneratorSuite extends SimpleTestSuite {
     assertSuccess(
       expr"!!true",
       List(
-        v(0) === BoolType,
-        v(1) === BoolType,
+        FuncType(List(v(1)), v(0)) === prefixType(PrefixOp.Not),
+        FuncType(List(v(2)), v(1)) === prefixType(PrefixOp.Not),
         v(2) === BoolType
       ))
   }
@@ -76,15 +78,25 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       ))
   }
 
-  test("let / ref") {
+  test("let") {
     assertSuccess(
-      expr"do let a = 1; a end",
+      expr"""
+      do
+        let a = 1
+        let b = 2
+        a > b
+      end
+      """,
       List(
-        v(0) === v(1),
-        v(1) === v(2),
-        v(2) === IntType
-      ))
+        FuncType(List(v(1), v(2)), v(5)) === infixType(InfixOp.Gt),
+        v(0) === v(5),
+        v(1) === v(3),
+        v(2) === v(4),
+        v(3) === IntType,
+        v(4) === IntType))
+  }
 
+  test("let with type") {
     assertSuccess(
       expr"do let a: Boolean = 1; a end",
       List(
@@ -95,23 +107,24 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       ))
   }
 
-  test("func / apply") {
+  test("unary func") {
     assertSuccess(
       expr"n -> n > 0",
       List(
+        FuncType(List(v(1), v(3)), v(2)) === infixType(InfixOp.Gt),
         v(0) === FuncType(List(v(1)), v(2)),
-        v(1) === IntType,
-        v(2) === BoolType,
         v(3) === IntType))
+  }
 
+  test("binary func") {
     assertSuccess(
       expr"(a, b) -> a > b",
       List(
-        v(0) === FuncType(List(v(1), v(2)), v(3)),
-        v(1) === IntType,
-        v(2) === IntType,
-        v(3) === BoolType))
+        FuncType(List(v(1), v(2)), v(3)) === infixType(InfixOp.Gt),
+        v(0) === FuncType(List(v(1), v(2)), v(3))))
+  }
 
+  test("typed binary func") {
     assertSuccess(
       expr"(a: Int -> String, b: Int): String -> a(b)",
       List(
@@ -120,22 +133,25 @@ object TypeGeneratorSuite extends SimpleTestSuite {
         v(1) === FuncType(List(IntType), StrType),
         v(1) === FuncType(List(v(2)), v(3)),
         v(2) === IntType))
+  }
 
+  test("app") {
     assertSuccess(
       prog"""
       let a = n -> n > 0
       a(10)
       """,
       List(
+        FuncType(List(v(3), v(5)), v(4)) === infixType(InfixOp.Gt),
         v(0) === v(6),
         v(1) === FuncType(List(v(7)), v(6)),
         v(1) === v(2),
         v(2) === FuncType(List(v(3)), v(4)),
-        v(3) === IntType,
-        v(4) === BoolType,
         v(5) === IntType,
         v(7) === IntType))
+  }
 
+  test("nested apps") {
     assertSuccess(
       expr"""
       do
@@ -145,18 +161,16 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       end
       """,
       List(
+        FuncType(List(v(4), v(6)), v(5))  === infixType(InfixOp.Add),
+        FuncType(List(v(8), v(10)), v(9)) === infixType(InfixOp.Gt),
         v(0) === v(11),
         v(1) === FuncType(List(v(13)), v(12)),
         v(1) === v(3),
         v(2) === FuncType(List(v(12)), v(11)),
         v(2) === v(7),
         v(3) === FuncType(List(v(4)), v(5)),
-        v(4) === IntType,
-        v(5) === IntType,
         v(6) === IntType,
         v(7) === FuncType(List(v(8)), v(9)),
-        v(8) === IntType,
-        v(9) === BoolType,
         v(10) === IntType,
         v(13) === IntType))
   }
@@ -219,17 +233,17 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       end
       """,
       List(
+        FuncType(List(v(4), v(6)), v(5)) === infixType(InfixOp.Add),
         v(0) === v(11),
         v(1) === v(3),
         v(2) === FuncType(List(v(1), v(12)), v(11)),
         v(2) === v(7),
         v(3) === FuncType(List(v(4)), v(5)),
-        v(4) === IntType,
-        v(5) === IntType,
         v(6) === IntType,
         v(7) === FuncType(List(v(8), v(9)), v(10)),
         v(8) === FuncType(List(v(9)), v(10)),
-        v(12) === IntType))
+        v(12) === IntType
+        ))
   }
 
   test("mutual recursion") {
@@ -242,29 +256,29 @@ object TypeGeneratorSuite extends SimpleTestSuite {
       end
       """,
       List(
+        FuncType(List(v(13), v(16)), v(15)) === FuncType(List(IntType, IntType), BoolType),
+        FuncType(List(v(13), v(20)), v(19)) === FuncType(List(IntType, IntType), IntType),
+        FuncType(List(v(4), v(11)), v(10)) === FuncType(List(IntType, IntType), IntType),
+        FuncType(List(v(4), v(7)), v(6)) === FuncType(List(IntType, IntType), BoolType),
         v(0) === v(21),
-        v(1) === FuncType(List(v(19)),v(18)),
-        v(1) === FuncType(List(v(22)),v(21)),
+        v(1) === FuncType(List(v(19)), v(18)),
+        v(1) === FuncType(List(v(22)), v(21)),
         v(1) === v(3),
-        v(2) === FuncType(List(v(10)),v(9)),
+        v(2) === FuncType(List(v(10)), v(9)),
         v(2) === v(12),
-        v(3) === FuncType(List(v(4)),v(5)),
-        v(4) === IntType,
+        v(3) === FuncType(List(v(4)), v(5)),
         v(5) === v(8),
         v(5) === v(9),
         v(6) === BoolType,
         v(7) === IntType,
         v(8) === BoolType,
-        v(10) === IntType,
         v(11) === IntType,
-        v(12) === FuncType(List(v(13)),v(14)),
-        v(13) === IntType,
+        v(12) === FuncType(List(v(13)), v(14)),
         v(14) === v(17),
         v(14) === v(18),
         v(15) === BoolType,
         v(16) === IntType,
         v(17) === BoolType,
-        v(19) === IntType,
         v(20) === IntType,
         v(22) === IntType))
   }
@@ -327,7 +341,4 @@ object TypeGeneratorSuite extends SimpleTestSuite {
 
     }
   }
-
-  def v(id: Int): TypeVar =
-    TypeVar(id)
 }

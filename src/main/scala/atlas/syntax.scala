@@ -11,6 +11,9 @@ object syntax {
 //       dec(value)
 //   }
 
+  def v(id: Int): TypeVar =
+    TypeVar(id)
+
   implicit class AtlasStringOps(val ctx: StringContext) extends AnyVal {
     def expr(args: Any *): Expr =
       macro Macros.exprMacro

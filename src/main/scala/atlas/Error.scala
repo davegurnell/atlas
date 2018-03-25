@@ -11,3 +11,4 @@ final case class TypeMismatch(expected: Type, actual: Type) extends TypeError
 final case class InfixNotDefined(op: InfixOp, arg1: Type, arg2: Type) extends TypeError
 final case class PrefixNotDefined(op: PrefixOp, arg: Type) extends TypeError
 final case class CyclicReference(a: TypeVar, b: Type) extends TypeError
+final case class MisplacedLet(varName: String) extends TypeError

@@ -39,13 +39,8 @@ object TypeAnnotator {
     } yield TRefExpr(tpe, ref.id)
 
   def doLet(let: LetExpr): Step[TExpr] =
-    for {
-      tpe    <- gen
-      expr   <- doExpr(let.expr)
-      varName = let.varName
-      varType = let.varType
-      _      <- set(varName, tpe)
-    } yield TLetExpr(tpe, varName, varType, expr)
+    // Can only process let expressions within a block:
+    fail(MisplacedLet(let.varName))
 
   def doApp(app: AppExpr): Step[TExpr] =
     for {
@@ -194,10 +189,7 @@ object TypeAnnotator {
     } yield tpe
 
   def set(id: String, tpe: TypeVar): Step[Unit] =
-    modifyChain { chain =>
-      chain.destructiveSet(id, tpe)
-      chain
-    }
+    modifyChain(chain => chain.set(id, tpe))
 
   def replaceChain[A](chain: Chain)(body: Step[A]): Step[A] =
     for {

@@ -2,7 +2,9 @@ package atlas
 
 import atlas.syntax._
 
-case class Substitution(lhs: TypeVar, rhs: Type)
+case class Substitution(lhs: TypeVar, rhs: Type) {
+  override def toString = s"$lhs --> $rhs"
+}
 
 object Substitution {
   implicit val ordering: Ordering[Substitution] =
@@ -29,8 +31,9 @@ object TypeUnifier {
     }
 
   def unifyOne(constraint: Constraint): Step[Set[Substitution]] =
+    // TODO: Handle union types (simple heuristic branching?):
     constraint match {
-      case (a: ConcreteType) === (b: ConcreteType) if a == b =>
+      case (a: AtomicType) === (b: AtomicType) if a == b =>
         pure(Set.empty[Substitution])
 
       case FuncType(aArgs, aRet) === FuncType(bArgs, bRet) =>
@@ -73,7 +76,7 @@ object TypeUnifier {
       case tpe: TypeVar        => tpe
       case tpe: TypeRef        => tpe
       case FuncType(args, ret) => FuncType(args.map(substVar(_, a, b)), substVar(ret, a, b))
-      // case UnionType(types)    => UnionTypes(types.map(substVar(_, a, b)))
+      case UnionType(l, r)     => UnionType(substVar(l, a, b), substVar(r, a, b))
       // case ObjType()           => ???
       case ArrType(tpe)        => ArrType(substVar(tpe, a, b))
       case tpe @ StrType       => tpe
@@ -95,7 +98,7 @@ object TypeUnifier {
       case b: TypeVar          => a == b
       case b: TypeRef          => false
       case FuncType(args, ret) => args.exists(contains(a, _)) || contains(a, ret)
-      // case UnionType(types)    => types.exists(contains(a))
+      case UnionType(l, r)     => contains(a, l) || contains(a, r)
       // case ObjType()           => ???
       case ArrType(b)          => a == b
       case StrType             => false

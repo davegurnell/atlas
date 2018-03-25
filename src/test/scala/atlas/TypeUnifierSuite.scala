@@ -74,19 +74,16 @@ object TypeUnifierSuite extends SimpleTestSuite {
       TypeMismatch(DblType, IntType))
   }
 
-  test("block / let / ref") {
+  test("block") {
     assertSuccess(
-      expr"""
-      do
-        1
-        true
-      end
-      """,
+      expr"""do 1; true end""",
       List(
         v(0) --> BoolType,
         v(1) --> IntType,
         v(2) --> BoolType))
+  }
 
+  test("let") {
     assertSuccess(
       expr"""
       do
@@ -104,7 +101,7 @@ object TypeUnifierSuite extends SimpleTestSuite {
         v(5) --> BoolType))
   }
 
-  test("func / apply") {
+  test("unary func") {
     assertSuccess(
       expr"n -> n > 0",
       List(
@@ -112,7 +109,9 @@ object TypeUnifierSuite extends SimpleTestSuite {
         v(1) --> IntType,
         v(2) --> BoolType,
         v(3) --> IntType))
+  }
 
+  test("binary func") {
     assertSuccess(
       expr"(a, b) -> a > b",
       List(
@@ -120,7 +119,9 @@ object TypeUnifierSuite extends SimpleTestSuite {
         v(1) --> IntType,
         v(2) --> IntType,
         v(3) --> BoolType))
+  }
 
+  test("typed binary func") {
     assertSuccess(
       expr"(a: Int -> String, b: Int) -> a(b)",
       List(
@@ -128,7 +129,9 @@ object TypeUnifierSuite extends SimpleTestSuite {
         v(1) --> FuncType(List(IntType), StrType),
         v(2) --> IntType,
         v(3) --> StrType))
+  }
 
+  test("app") {
     assertSuccess(
       prog"""
       let a = n -> n > 0
@@ -143,7 +146,9 @@ object TypeUnifierSuite extends SimpleTestSuite {
         v(5) --> IntType,
         v(6) --> BoolType,
         v(7) --> IntType))
+  }
 
+  test("nested apps") {
     assertSuccess(
       expr"""
       do

@@ -141,7 +141,7 @@ class Macros(val c: blackbox.Context) {
           case TypeVar(id)         => q"$pkg.TypeVar($id)"
           case TypeRef(id)         => q"$pkg.TypeRef($id)"
           case FuncType(args, res) => q"$pkg.FuncType($args, $res)"
-          // case UnionType(types)    => q"$pkg.UnionType($types)"
+          case UnionType(a, b)     => q"$pkg.UnionType($a, $b)"
           // case ObjType(fieldTypes) => q"$pkg.ObjType($fieldTypes)"
           case ArrType(tpe)        => q"$pkg.ArrType($tpe)"
           case StrType             => q"$pkg.StrType"

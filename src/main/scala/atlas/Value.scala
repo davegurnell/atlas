@@ -17,12 +17,10 @@ final case class Closure(func: FuncExpr, env: Env) extends FuncVal {
   override def toString: String = s"Closure($func, ${env.chain.scopes.length})"
 }
 
-// final case class Native(tpe: Type, run: List[Value] => Interpreter.Step[Value]) extends FuncVal {
-//   def orElse(that: Native): Native =
-//     Native(
-//       UnionType(Set(this.tpe, that.tpe)),
-//       values => {
-//         this.run(values).leftFlatMap(_ => that.run(values))
-//       }
-//     )
-// }
+final case class Native(tpe: Type, run: List[Value] => Interpreter.Step[Value]) extends FuncVal {
+  def orElse(that: Native): Native =
+    Native(
+      UnionType(this.tpe, that.tpe),
+      values => this.run(values).leftFlatMap(_ => that.run(values))
+    )
+}
