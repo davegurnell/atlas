@@ -1,9 +1,13 @@
 package atlas
 
+import cats.MonadError
+import cats.implicits._
 import minitest._
 import syntax._
 
 object ProgramInterpreterSuite extends SimpleTestSuite {
+  import SyncInterpreter.{F, createEnv, basicEnv}
+
   test("recursive odd/even") {
     val code = prog"""
       let even = n -> if n == 0 then true else odd(n - 1)
@@ -11,7 +15,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       even(10)
       """
-    val env = Env.create
+    val env = createEnv
     val expected = true
 
     assertSuccess(code, env, expected)
@@ -26,7 +30,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       factorial(10)
       """
-    val env = Env.create
+    val env = createEnv
     val expected = (1 to 10).foldLeft(1)(_ * _)
 
     assertSuccess(prog, env, expected)
@@ -41,7 +45,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       fib(10)
       """
-    val env = Env.create
+    val env = createEnv
     val expected = 55
 
     assertSuccess(prog, env, expected)
@@ -60,7 +64,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       filter(inBounds, flatten(map(double, values)))
       """
-    val env = Env.basic
+    val env = basicEnv
     val expected = List(2, 5, 10, 7, 14)
 
     assertSuccess(prog, env, expected)
@@ -83,7 +87,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
       )# Comment
       # Comment
       """
-    val env = Env.create
+    val env = createEnv
     val expected = 42
 
     assertSuccess(prog, env, expected)
@@ -91,7 +95,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
   test("native functions") {
     val prog = prog"""average(10, 5)"""
-    val env = Env.create
+    val env = createEnv
     //   .set("average", (a: Double, b: Double) => (a + b) / 2)
     val expected = 7.5
 
@@ -101,16 +105,16 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
   test("native functions with exceptions") {
     val prog = prog"""average(10, 5)"""
     val exn = new Exception("Badness")
-    val env = Env.create
+    val env = createEnv
     //   .set("average", (a: Double, b: Double) => { if(a > b) throw exn ; 0 })
     val expected = RuntimeError("Error in native function", Some(exn))
 
     assertFailure(prog, env, expected)
   }
 
-  def assertSuccess[A](prog: Expr, env: Env, expected: A)(implicit dec: ValueDecoder[A]): Unit =
-    assertEquals(Interpreter(prog, env).flatMap(dec.apply), Right(expected))
+  def assertSuccess[A](prog: Expr, env: Env[F], expected: A)(implicit dec: ValueDecoder[F, A]): Unit =
+    assertEquals(SyncInterpreter(prog, env).flatMap(dec.apply), Right(expected))
 
-  def assertFailure(prog: Expr, env: Env, expected: RuntimeError): Unit =
-    assertEquals(Interpreter(prog, env), Left(expected))
+  def assertFailure(prog: Expr, env: Env[F], expected: RuntimeError): Unit =
+    assertEquals(SyncInterpreter(prog, env), Left(expected))
 }

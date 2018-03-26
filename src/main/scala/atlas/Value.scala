@@ -1,48 +1,30 @@
 package atlas
 
+import cats.MonadError
 import cats.implicits._
 
-sealed abstract class Value extends Product with Serializable
+sealed abstract class Value[F[_]] extends Product with Serializable
 
-final case class ObjVal(fields: List[(String, Value)]) extends Value
-final case class ArrVal(items: List[Value]) extends Value
-final case class StrVal(value: String) extends Value
-final case class IntVal(value: Int) extends Value
-final case class DblVal(value: Double) extends Value
-final case class BoolVal(value: Boolean) extends Value
-case object NullVal extends Value
+final case class ObjVal[F[_]](fields: List[(String, Value[F])]) extends Value[F]
+final case class ArrVal[F[_]](items: List[Value[F]]) extends Value[F]
+final case class StrVal[F[_]](value: String) extends Value[F]
+final case class IntVal[F[_]](value: Int) extends Value[F]
+final case class DblVal[F[_]](value: Double) extends Value[F]
+final case class BoolVal[F[_]](value: Boolean) extends Value[F]
+final case class NullVal[F[_]]() extends Value[F]
 
-sealed abstract class FuncVal extends Value
+sealed abstract class FuncVal[F[_]] extends Value[F]
 
-final case class Closure(func: FuncExpr, env: Env) extends FuncVal {
+final case class Closure[F[_]](func: FuncExpr, env: Env[F]) extends FuncVal[F] {
   override def toString: String = s"Closure($func, ${env.chain.scopes.length})"
 }
 
-sealed abstract class NativeOp(val id: String) extends FuncVal
+final case class Native[F[_]](func: List[Value[F]] => F[Value[F]]) extends FuncVal[F] {
+  def apply(args: List[Value[F]]): F[Value[F]] =
+    func(args)
 
-sealed abstract class InfixOp(override val id: String) extends NativeOp(id)
-
-object InfixOp {
-  case object Add extends InfixOp("+")
-  case object Sub extends InfixOp("-")
-  case object Mul extends InfixOp("*")
-  case object Div extends InfixOp("/")
-  case object And extends InfixOp("&&")
-  case object Or extends InfixOp("||")
-  case object Eq extends InfixOp("==")
-  case object Ne extends InfixOp("!=")
-  case object Gt extends InfixOp(">")
-  case object Lt extends InfixOp("<")
-  case object Gte extends InfixOp(">=")
-  case object Lte extends InfixOp("<=")
+  def orElse(that: Native[F])(implicit monad: MonadError[F, RuntimeError]): Native[F] =
+    Native(args => this(args).recoverWith { case error => that(args) })
 }
 
-sealed abstract class PrefixOp(override val id: String) extends NativeOp(id)
-
-object PrefixOp {
-  case object Not extends PrefixOp("!")
-  case object Pos extends PrefixOp("+")
-  case object Neg extends PrefixOp("-")
-}
-
-final case class Native(override val id: String) extends NativeOp(id)
+object Value extends NativeBoilerplate

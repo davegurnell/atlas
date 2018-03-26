@@ -8,30 +8,32 @@ trait ValueDecoderBoilerplate {
 
   [#implicit def function1[F[_], [#A1#], R](
     implicit
-    monadError: MonadError[F, RuntimeError],
+    monad: MonadError[F, RuntimeError],
     interpreter: Interpreter[F],
-    [#enc1: ValueEncoder[A1]#],
-    dec: ValueDecoder[R],
-  ): ValueDecoder[([#A1#]) => F[R]] = {
+    [#enc1: ValueEncoder[F, A1]#],
+    dec: ValueDecoder[F, R],
+  ): ValueDecoder[F, ([#A1#]) => interpreter.Step[R]] = {
     pure {
-      case closure: Closure =>
-        Right { ([#arg1: A1#]) =>
+      case closure: Closure[F] =>
+        monad.pure { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
-          interpreter.applyClosure(closure, args).flatMap { value =>
-            interpreter.pureEither(dec(value))
-          }
+          for {
+            res <- interpreter.applyClosure(closure, args)
+            ans <- interpreter.pureF(dec(res))
+          } yield ans
         }
 
-      case native: Native =>
-        Right { ([#arg1: A1#]) =>
+      case native: Native[F] =>
+        monad.pure { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
-          interpreter.applyNative(native, args).flatMap { value =>
-            interpreter.pureEither(dec(value))
-          }
+          for {
+            res <- interpreter.applyNative(native, args)
+            ans <- interpreter.pureF(dec(res))
+          } yield ans
         }
 
       case value =>
-        Left(RuntimeError(s"Could not decode function: $value"))
+        RuntimeError(s"Could not decode value as function: $value").raiseError
     }
   }#
 

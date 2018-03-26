@@ -1,23 +1,25 @@
-// package atlas
+package atlas
 
-// object PrefixImpl {
-//   import Value._
+import cats.MonadError
 
-//   def pos: Native =
-//     native((a: Int) => a) orElse
-//     native((a: Double) => a)
+object PrefixImpl {
+  import Value._
 
-//   def neg: Native =
-//     native((a: Int) => -a) orElse
-//     native((a: Double) => -a)
+  def pos[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
+    Value.native((a: Int) => a) orElse
+    Value.native((a: Double) => a)
 
-//   def not: Native =
-//     native((a: Boolean) => !a)
+  def neg[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
+    Value.native((a: Int) => -a) orElse
+    Value.native((a: Double) => -a)
 
-//   def apply(op: PrefixOp): Native =
-//     op match {
-//       case PrefixOp.Pos => pos
-//       case PrefixOp.Neg => neg
-//       case PrefixOp.Not => not
-//     }
-// }
+  def not[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
+    Value.native((a: Boolean) => !a)
+
+  def apply[F[_]](op: PrefixOp)(implicit monad: MonadError[F, RuntimeError]): Native[F] =
+    op match {
+      case PrefixOp.Pos => pos
+      case PrefixOp.Neg => neg
+      case PrefixOp.Not => not
+    }
+}

@@ -1,13 +1,16 @@
 package atlas
 
 import atlas.syntax._
+import cats.implicits._
 import minitest._
 
 object SimpleInterpreterSuite extends SimpleTestSuite {
+  import SyncInterpreter.{F, createEnv, basicEnv}
+
   test("constant") {
     assertSuccess(
       expr"true",
-      Env.create,
+      createEnv,
       true
     )
   }
@@ -15,7 +18,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   test("infix") {
     assertSuccess(
       expr"1 + 2 + 3",
-      Env.create,
+      createEnv,
       6
     )
   }
@@ -23,7 +26,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   test("variable reference") {
     assertSuccess(
       expr"foo",
-      Env.create.set("foo", true),
+      createEnv.set("foo", true),
       true
     )
   }
@@ -31,7 +34,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   test("variable not in env") {
     assertFailure(
       expr"foo",
-      Env.create,
+      createEnv,
       RuntimeError("Not in scope: foo")
     )
   }
@@ -41,7 +44,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       add(mul(a, b), mul(4, 5))
       """
 
-    val env = Env.create
+    val env = createEnv
      // .set("add", (a: Int, b: Int) => a + b)
      // .set("mul", (a: Int, b: Int) => a * b)
      // .set("a", 2)
@@ -64,7 +67,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       end
       """
 
-    val env = Env.create
+    val env = createEnv
 
     val expected = 123
 
@@ -83,7 +86,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       }
       """
 
-    val env = Env.create
+    val env = createEnv
 
     val expected = Json.obj(
       "foo" -> 2.asJson,
@@ -94,9 +97,9 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
     assertSuccess(code, env, expected)
   }
 
-  def assertSuccess[A](expr: Expr, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit =
-    assertEquals(Interpreter(expr, env), Right(enc(expected)))
+  def assertSuccess[A](expr: Expr, env: Env[F], expected: A)(implicit enc: ValueEncoder[F, A]): Unit =
+    assertEquals(SyncInterpreter(expr, env), Right(enc(expected)))
 
-  def assertFailure(expr: Expr, env: Env, expected: RuntimeError): Unit =
-    assertEquals(Interpreter(expr, env), Left(expected))
+  def assertFailure(expr: Expr, env: Env[F], expected: RuntimeError): Unit =
+    assertEquals(SyncInterpreter(expr, env), Left(expected))
 }

@@ -10,25 +10,28 @@ trait ValueEncoderBoilerplate {
   [#implicit def function1[F[_], [#A1#], R](
     implicit
     monadError: MonadError[F, RuntimeError],
-    // interpreter: Interpreter[F],
-    [#argDec1: ValueDecoder[A1]#,
+    interpreter: Interpreter[F],
+    [#argDec1: ValueDecoder[F, A1]#,
     ],
-    resEnc: ValueEncoder[R]
-  ): ValueEncoder[([#A1#]) => R] =
+    resEnc: ValueEncoder[F, R]
+  ): ValueEncoder[F, ([#A1#]) => F[R]] =
     pure { func =>
-      // NativeFunc { values =>
-      //   for {
-      //     [#arg1 <- monadError.fromEither(argDec1(values(0)))#
-      //     ]
-      //     ans <- tryCatch(func([#arg1#]))
-      //   } yield resEnc(ans)
-      // }
-      ???
+      Native {
+        case [#v1# :: ] :: Nil =>
+          for {
+            [#a1 <- argDec1(v1)#
+            ]
+            r <- func([#a1#])
+          } yield resEnc(r)
+
+        case args =>
+          RuntimeError(s"Native function cannot be applied to ${args.length} args").raiseError[F, Value[F]]
+      }
     }#
 
   ]
 
-  private def tryCatch[F[_], A](body: => A)(implicit monadError: MonadError[F, RuntimeError]): F[A] =
+  private def tryCatch[F[_], A](body: => A)(implicit monad: MonadError[F, RuntimeError]): F[A] =
     try {
       body.pure[F]
     } catch {
