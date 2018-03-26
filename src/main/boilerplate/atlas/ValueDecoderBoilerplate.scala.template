@@ -1,27 +1,33 @@
 package atlas
 
-import cats.implicits._
+import cats.MonadError
+import cats.syntax.all._
 
 trait ValueDecoderBoilerplate {
   self: ValueDecoderFunctions =>
 
-  implicit class StepOps(step: Interpreter.Step[Value]) {
-    def unsafeUnpack[A](implicit dec: ValueDecoder[A]): A =
-      step.value.runA(Env.create).value.flatMap(dec.apply).right.get
-  }
-
-  [#implicit def function1[[#A1#], R](implicit [#enc1: ValueEncoder[A1]#], dec: ValueDecoder[R]): ValueDecoder[([#A1#]) => R] = {
+  [#implicit def function1[F[_], [#A1#], R](
+    implicit
+    monadError: MonadError[F, RuntimeError],
+    interpreter: Interpreter[F],
+    [#enc1: ValueEncoder[A1]#],
+    dec: ValueDecoder[R],
+  ): ValueDecoder[([#A1#]) => F[R]] = {
     pure {
       case closure: Closure =>
         Right { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
-          Interpreter.applyClosure(closure, args).unsafeUnpack[R]
+          interpreter.applyClosure(closure, args).flatMap { value =>
+            interpreter.pureEither(dec(value))
+          }
         }
 
       case native: Native =>
         Right { ([#arg1: A1#]) =>
           val args = List([#enc1(arg1)#])
-          native.run(args).unsafeUnpack[R]
+          interpreter.applyNative(native, args).flatMap { value =>
+            interpreter.pureEither(dec(value))
+          }
         }
 
       case value =>

@@ -1,13 +1,31 @@
 package atlas
 
-import cats.data.{EitherT, State}
+import cats._
+import cats.data._
 import cats.implicits._
 
-object Interpreter {
-  type Step[A] = EitherT[Lambda[X => State[Env, X]], RuntimeError, A]
-
+object Interpreter extends Interpreter[Lambda[A => EitherT[Lambda[X => State[Env, X]], RuntimeError, A]]] {
   def apply(expr: Expr, env: Env = Env.create): Either[RuntimeError, Value] =
     evalExpr(expr).value.runA(env).value
+
+  def pureEither[A](either: Either[RuntimeError, A]): Step[A] =
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, either)))
+
+  def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Left(RuntimeError(msg, cause)))))
+
+  def inspectEnvEither[A](func: Env => Either[RuntimeError, A]): Step[A] =
+    EitherT(State[Env, Either[RuntimeError, A]](env => (env, func(env))))
+
+  def modifyEnv(f: Env => Env): Step[Unit] =
+    EitherT(State[Env, Either[RuntimeError, Unit]](env => (f(env), Right(()))))
+}
+
+abstract class Interpreter[F[_]](
+  implicit
+  monadError: MonadError[F, RuntimeError]
+) extends NativeImpl[F] {
+  type Step[A] = F[A]
 
   def evalExpr(expr: Expr): Step[Value] =
     expr match {
@@ -48,17 +66,24 @@ object Interpreter {
       ans  <- evalAppInternal(func, args)
     } yield ans
 
+  def evalAppInternal(func: Value, args: List[Value]): Step[Value] =
+    func match {
+      case closure : Closure => applyClosure(closure, args)
+      case native  : Native  => applyNative(native, args)
+      case value             => fail(s"Cannot call $value")
+    }
+
   def evalInfix(infix: InfixExpr): Step[Value] =
     for {
       arg1 <- evalExpr(infix.arg1)
       arg2 <- evalExpr(infix.arg2)
-      ans  <- evalAppInternal(InfixImpl(infix.op), List(arg1, arg2))
+      ans  <- applyNative(infix.op, List(arg1, arg2))
     } yield ans
 
   def evalPrefix(prefix: PrefixExpr): Step[Value] =
     for {
       arg  <- evalExpr(prefix.arg)
-      ans  <- evalAppInternal(PrefixImpl(prefix.op), List(arg))
+      ans  <- applyNative(prefix.op, List(arg))
     } yield ans
 
   def evalFunc(func: FuncExpr): Step[Value] =
@@ -108,13 +133,6 @@ object Interpreter {
                 }
     } yield result
 
-  def evalAppInternal(func: Value, args: List[Value]): Step[Value] =
-    func match {
-      case closure : Closure => applyClosure(closure, args)
-      case native  : Native  => applyNative(native, args)
-      case value             => fail(s"Cannot call $value")
-    }
-
   def applyClosure(closure: Closure, args: List[Value]): Step[Value] =
     replaceEnv(closure.env) {
       pushScope {
@@ -126,37 +144,23 @@ object Interpreter {
       }
     }
 
-  def applyNative(native: Native, args: List[Value]): Step[Value] =
-    native.run(args)
+  def applyNative(native: NativeOp, args: List[Value]): Step[Value] =
+    for {
+      impl <- nativeImpl(native)
+      ans  <- impl(args)
+    } yield ans
 
-  def pureEither[A](either: Either[RuntimeError, A]): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, either)))
+  final val currentEnv: Step[Env] =
+    inspectEnv(identity)
 
-  def pure[A](value: A): Step[A] =
-    pureEither(Right(value))
+  final def pushScope[A](body: Step[A]): Step[A] =
+    for {
+      _   <- modifyEnv(_.push)
+      ans <- body
+      _   <- modifyEnv(_.pop)
+    } yield ans
 
-  def tryCatch[A](value: => A): Step[A] =
-   try pure(value) catch {
-     case exn: Exception =>
-       fail("Error in native function", Some(exn))
-   }
-
-  def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Left(RuntimeError(msg, cause)))))
-
-  def inspectEnv[A](func: Env => A): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Right(func(env)))))
-
-  def inspectEnvEither[A](func: Env => Either[RuntimeError, A]): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, func(env))))
-
-  val currentEnv: Step[Env] =
-    EitherT(State[Env, Either[RuntimeError, Env]](env => (env, Right(env))))
-
-  def modifyEnv(f: Env => Env): Step[Unit] =
-    EitherT(State[Env, Either[RuntimeError, Unit]](env => (f(env), Right(()))))
-
-  def replaceEnv[A](env: Env)(body: Step[A]): Step[A] =
+  final def replaceEnv[A](env: Env)(body: Step[A]): Step[A] =
     for {
       env0 <- currentEnv
       _    <- modifyEnv(_ => env)
@@ -164,10 +168,17 @@ object Interpreter {
       _    <- modifyEnv(_ => env0)
     } yield ans
 
-  def pushScope[A](body: Step[A]): Step[A] =
-    for {
-      _   <- modifyEnv(_.push)
-      ans <- body
-      _   <- modifyEnv(_.pop)
-    } yield ans
+  final def pure[A](value: A): Step[A] =
+    pureEither(Right(value))
+
+  def pureEither[A](either: Either[RuntimeError, A]): Step[A]
+
+  def fail[A](msg: String, cause: Option[Exception] = None): Step[A]
+
+  final def inspectEnv[A](func: Env => A): Step[A] =
+    inspectEnvEither(env => Right(func(env)))
+
+  def inspectEnvEither[A](func: Env => Either[RuntimeError, A]): Step[A]
+
+  def modifyEnv(f: Env => Env): Step[Unit]
 }

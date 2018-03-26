@@ -1,15 +1,20 @@
 package atlas
 
+import cats.MonadError
+
 trait ValueEncoderBoilerplate {
   self: ValueEncoderFunctions =>
 
-  [#implicit def function1[[#A1#], R](
+  [#implicit def function1[F[_], [#A1#], R](
     implicit
     [#argDec1: ValueDecoder[A1]#,
     ],
     resEnc: ValueEncoder[R]
   ): ValueEncoder[([#A1#]) => R] =
-    pure(func => Value.native(func))
+    pure { func =>
+      // interpreter.applyNative(???)
+      ???
+    }
   #
 
   ]

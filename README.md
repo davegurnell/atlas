@@ -258,7 +258,7 @@ You can implement "native functions" in Scala:
 ```scala
 val program = prog"average(10, 5)"
 val env = Env.create
-  .set("average", NativeFunc((a: Double, b: Double) => (a + b) / 2))
+  .set("average", native((a: Double, b: Double) => (a + b) / 2))
 Eval(program, env) // => Right(DoubleValue(7.5))
 ```
 

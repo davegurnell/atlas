@@ -1,39 +1,31 @@
 package atlas
 
-import cats.implicits._
+import cats.MonadError
+import cats.syntax.all._
+import scala.util.control.NonFatal
 
-trait NativeBoilerplate {
-  self: Value.type =>
-
-  [#def native[[#A1#], R](func: ([#A1#]) => R)(
+abstract class NativeBoilerplate[F[_]](implicit monadError: MonadError[F, RuntimeError]) {
+  [#def wrap[[#A1#], R](func: ([#A1#]) => R)(
     implicit
     [#argDec1: ValueDecoder[A1]#,
     ],
     resEnc: ValueEncoder[R]
-  ): Native =
-    Native { values =>
+  ): NativeFunc[F] =
+    NativeFunc { values =>
       for {
-        [#arg1 <- Interpreter.pureEither(argDec1(values(0)))#
+        [#arg1 <- monadError.fromEither(argDec1(values(0)))#
         ]
-        ans <- Interpreter.tryCatch(resEnc(func([#arg1#])))
-      } yield ans
+        ans <- tryCatch(func([#arg1#]))
+      } yield resEnc(ans)
     }#
 
   ]
 
-  [#def nativeM[[#A1#], R](func: ([#A1#]) => Interpreter.Step[R])(
-    implicit
-    [#argDec1: ValueDecoder[A1]#,
-    ],
-    resEnc: ValueEncoder[R]
-  ): Native =
-    Native { values =>
-      for {
-        [#arg1 <- Interpreter.pureEither(argDec1(values(0)))#
-        ]
-        ans <- func([#arg1#])
-      } yield resEnc(ans)
-    }#
-
-    ]
+  private def tryCatch[A](body: => A): F[A] =
+    try {
+      body.pure[F]
+    } catch {
+      case NonFatal(exn) =>
+        RuntimeError("Error running native function", Some(exn)).raiseError[F, A]
+    }
 }

@@ -1,5 +1,7 @@
 package atlas
 
+import cats.MonadError
+
 final case class Env(chain: ScopeChain[String, Value]) {
   def get(id: String): Option[Value] =
     chain.get(id)
@@ -26,8 +28,8 @@ object Env {
 
   def basic: Env =
     Env.create
-      .set("map", (func: Value => Value, list: List[Value]) => list.map(func))
-      .set("flatMap", (func: Value => List[Value], list: List[Value]) => list.flatMap(func))
-      .set("filter", (func: Value => Boolean, list: List[Value]) => list.filter(func))
-      .set("flatten", (list: List[List[Value]]) => list.flatten)
+      // .set("map",     (func: Value => Value, list: List[Value]) => list.map(func))
+      // .set("flatMap", (func: Value => List[Value], list: List[Value]) => list.flatMap(func))
+      // .set("filter",  (func: Value => Boolean, list: List[Value]) => list.filter(func))
+      // .set("flatten", (list: List[List[Value]]) => list.flatten)
 }
