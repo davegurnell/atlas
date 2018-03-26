@@ -1,0 +1,108 @@
+package atlas
+
+import cats.MonadError
+import cats.syntax.all._
+import shapeless.Lazy
+
+trait InterpreterBoilerplate[F[_]] {
+  self: Interpreter[F] =>
+
+  trait NativeFunctions {
+    [#def apply[[#T1#], R](func: ([#T1#]) => R)(
+      implicit
+      [#argDec1: ValueDecoder[F, T1]#,
+      ],
+      resEnc: ValueEncoder[F, R]
+    ): Native[F] =
+      Native {
+        case [#v1# :: ] :: Nil =>
+          for {
+            [#v1 <- argDec1(v1)#
+            ]
+            res <- catchNonFatalF(func([#v1#]))
+          } yield resEnc(res)
+
+        case args =>
+          RuntimeError("Error running native function", None).raiseError[F, Value[F]]
+      }#
+
+    ]
+
+    [#def applyF[[#T1#], R](func: ([#T1#]) => F[R])(
+      implicit
+      monad: MonadError[F, RuntimeError],
+      [#argDec1: ValueDecoder[F, T1]#,
+      ],
+      resEnc: ValueEncoder[F, R]
+    ): Native[F] =
+      Native {
+        case [#v1# :: ] :: Nil =>
+          for {
+            [#a1 <- argDec1(v1)#
+            ]
+            res <- func([#a1#])
+          } yield resEnc(res)
+
+        case args =>
+          RuntimeError("Error running native function", None).raiseError[F, Value[F]]
+      }#
+
+    ]
+  }
+
+  trait NativeEncoders {
+    [#implicit def function1[[#T1#], R](
+      implicit
+      [#argDec1: Lazy[ValueDecoder[F, T1]]#,
+      ],
+      resEnc: Lazy[ValueEncoder[F, R]]
+    ): ValueEncoder[F, ([#T1#]) => F[R]] =
+      ValueEncoder.pure { func =>
+        Native {
+          case [#v1# :: ] :: Nil =>
+            for {
+              [#a1 <- argDec1.value(v1)#
+              ]
+              r <- func([#a1#])
+            } yield resEnc.value(r)
+
+          case args =>
+            RuntimeError("Error running native function", None).raiseError[F, Value[F]]
+        }
+      }#
+
+    ]
+  }
+
+  trait NativeDecoders {
+    [#implicit def function1F[[#A1#], R](
+      implicit
+      [#enc1: Lazy[ValueEncoder[F, A1]]#],
+      dec: Lazy[ValueDecoder[F, R]]
+    ): ValueDecoder[F, ([#A1#]) => F[R]] =
+      ValueDecoder.pure {
+        case closure: Closure[F] =>
+          monad.pure { ([#arg1: A1#]) =>
+            val args = List([#enc1.value(arg1)#])
+            for {
+              res <- applyClosureF(closure, args)
+              ans <- dec.value(res)
+            } yield ans
+          }
+
+        case native: Native[F] =>
+          monad.pure { ([#arg1: A1#]) =>
+            val args = List([#enc1.value(arg1)#])
+            for {
+              res <- applyNativeF(native, args)
+              ans <- dec.value(res)
+            } yield ans
+          }
+
+        case value =>
+          RuntimeError(s"Could not decode value as function: $value").raiseError
+      }#
+
+    ]
+  }
+}

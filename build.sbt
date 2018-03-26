@@ -63,9 +63,9 @@ libraryDependencies ++= Seq(
   // "com.github.mpilquist" %% "simulacrum"     % "0.12.0",
   "com.davegurnell"      %% "unindent"       % "1.1.0",
   "com.lihaoyi"          %% "fastparse"      % "1.0.0",
-  "io.circe"             %% "circe-core"     % "0.9.1",
-  "io.circe"             %% "circe-generic"  % "0.9.1",
-  "io.circe"             %% "circe-parser"   % "0.9.1",
+  // "io.circe"             %% "circe-core"     % "0.9.1",
+  // "io.circe"             %% "circe-generic"  % "0.9.1",
+  // "io.circe"             %% "circe-parser"   % "0.9.1",
   "io.monix"             %% "minitest"       % "2.1.1" % Test
 )
 

@@ -9,7 +9,6 @@ trait ValueDecoder[F[_], A] {
 
 object ValueDecoder extends ValueDecoderFunctions
   with ValueDecoderInstances
-  with ValueDecoderBoilerplate
 
 trait ValueDecoderFunctions {
   def apply[F[_], A](implicit instance: ValueDecoder[F, A]): ValueDecoder[F, A] =
@@ -42,6 +41,7 @@ trait ValueDecoderInstances {
 
   implicit def double[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Double] =
     pure {
+      case IntVal(value) => (value * 1.0).pure[F]
       case DblVal(value) => value.pure[F]
       case value         => RuntimeError(s"Could not decode double: $value").raiseError[F, Double]
     }
@@ -58,22 +58,22 @@ trait ValueDecoderInstances {
       case value          => RuntimeError(s"Could not decode list: $value").raiseError[F, List[A]]
     }
 
-  import io.circe.{Decoder, Json}
+  // import io.circe.{Decoder, Json}
 
-  implicit def circe[F[_], A](implicit monad: MonadError[F, RuntimeError]): ValueDecoder[F, Json] =
-    pure { value =>
-      def toJson(value: Value[F]): F[Json] =
-        value match {
-          case NullVal()         => Json.Null.pure[F]
-          case BoolVal(value)    => (if(value) Json.True else Json.False).pure[F]
-          case IntVal(num)       => Json.fromInt(num).pure[F]
-          case DblVal(num)       => Json.fromDouble(num).fold(RuntimeError(s"Could not decode double: $num").raiseError[F, Json])(_.pure[F])
-          case StrVal(str)       => Json.fromString(str).pure[F]
-          case ArrVal(items)     => items.traverse(toJson).map(Json.fromValues)
-          case ObjVal(fields)    => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
-          case value: FuncVal[F] => RuntimeError(s"Cannot decode function as JSON: $value").raiseError[F, Json]
-        }
+  // implicit def circe[F[_], A](implicit monad: MonadError[F, RuntimeError]): ValueDecoder[F, Json] =
+  //   pure { value =>
+  //     def toJson(value: Value[F]): F[Json] =
+  //       value match {
+  //         case NullVal()         => Json.Null.pure[F]
+  //         case BoolVal(value)    => (if(value) Json.True else Json.False).pure[F]
+  //         case IntVal(num)       => Json.fromInt(num).pure[F]
+  //         case DblVal(num)       => Json.fromDouble(num).fold(RuntimeError(s"Could not decode double: $num").raiseError[F, Json])(_.pure[F])
+  //         case StrVal(str)       => Json.fromString(str).pure[F]
+  //         case ArrVal(items)     => items.traverse(toJson).map(Json.fromValues)
+  //         case ObjVal(fields)    => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
+  //         case value: FuncVal[F] => RuntimeError(s"Cannot decode function as JSON: $value").raiseError[F, Json]
+  //       }
 
-      toJson(value)
-    }
+  //     toJson(value)
+  //   }
 }

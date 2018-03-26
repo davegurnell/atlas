@@ -2,39 +2,35 @@ package atlas
 
 import atlas.SyncInterpreter.Step
 import cats.MonadError
-import cats.data.{State, StateT}
-import cats.instances.either._
-import cats.instances.list._
-import cats.syntax.all._
+import cats.data.{EitherT, State, StateT}
+import cats.implicits._
+import scala.util.control.NonFatal
+import scala.concurrent.{Future, ExecutionContext}
 
 object SyncInterpreter extends Interpreter[Either[RuntimeError, ?]] {
   type F[A] = Either[RuntimeError, A]
-
-  def infixImpl(op: InfixOp): Native[F] =
-    InfixImpl[F](op)
-
-  def prefixImpl(op: PrefixOp): Native[F] =
-    PrefixImpl[F](op)
-
-  def basicEnv: Env[F] =
-    createEnv
-      // .set("map",     Value.native((func: Value[F] => Step[Value[F]], list: List[Value[F]]) => pure(list.map(func))))
-      // .set("flatMap", Value.native((func: Value[F] => Step[List[Value[F]]], list: List[Value[F]]) => pure(list.flatMap(func))))
-      // .set("filter",  Value.native((func: Value[F] => Step[Boolean], list: List[Value[F]]) => pure(list.filter(func))))
-      // .set("flatten", Value.native((list: List[List[Value[F]]]) => pure(list.flatten)))
 }
 
-abstract class Interpreter[F[_]](
-  implicit
-  monadError: MonadError[F, RuntimeError]
-) {
+class AsyncInterpreter(implicit ec: ExecutionContext) extends Interpreter[EitherT[Future, RuntimeError, ?]] {
+  type F[A] = EitherT[Future, RuntimeError, A]
+}
+
+abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
+  extends InterpreterBoilerplate[F]
+  with InfixImpl[F]
+  with PrefixImpl[F]
+  with NativeImpl[F] {
+
   type Step[A] = StateT[F, Env[F], A]
+
+  // From InterpreterBoilerplate:
+  object native extends NativeFunctions
+
+  // From InterpreterBoilerplate:
+  object implicits extends NativeEncoders with NativeDecoders
 
   def apply(expr: Expr, env: Env[F] = createEnv): F[Value[F]] =
     evalExpr(expr).runA(env)
-
-  def createEnv: Env[F] =
-    Env(ScopeChain.create)
 
   def evalExpr(expr: Expr): Step[Value[F]] =
     expr match {
@@ -156,6 +152,12 @@ abstract class Interpreter[F[_]](
   def applyNative(native: Native[F], args: List[Value[F]]): Step[Value[F]] =
     pureF(native(args))
 
+  def applyClosureF(closure: Closure[F], args: List[Value[F]]): F[Value[F]] =
+    applyClosure(closure, args).runA(closure.env)
+
+  def applyNativeF(native: Native[F], args: List[Value[F]]): F[Value[F]] =
+    applyNative(native, args).runA(createEnv)
+
   final val currentEnv: Step[Env[F]] =
     inspectEnv(identity)
 
@@ -173,10 +175,6 @@ abstract class Interpreter[F[_]](
       ans  <- body
       _    <- modifyEnv(_ => env0)
     } yield ans
-
-  def infixImpl(op: InfixOp): Native[F]
-
-  def prefixImpl(op: PrefixOp): Native[F]
 
   final def pure[A](value: A): Step[A] =
     pureF(value.pure[F])
@@ -198,4 +196,12 @@ abstract class Interpreter[F[_]](
 
   final def modifyEnvF(func: Env[F] => F[Env[F]]): Step[Unit] =
     StateT.modifyF(func)
+
+  final def catchNonFatalF[A](body: => A): F[A] =
+    try {
+      body.pure[F]
+    } catch {
+      case NonFatal(exn) =>
+        RuntimeError("Error executing native code", Some(exn)).raiseError[F, A]
+    }
 }

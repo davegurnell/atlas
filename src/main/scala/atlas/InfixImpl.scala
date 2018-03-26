@@ -3,72 +3,74 @@ package atlas
 import cats.MonadError
 import cats.syntax.all._
 
-object InfixImpl extends NativeBoilerplate {
-  def add[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a + b) orElse
-    Value.native((a: Double, b: Double) => a + b) orElse
-    Value.native((a: String, b: String) => a + b)
+trait InfixImpl[F[_]] {
+  self: Interpreter[F] =>
 
-  def sub[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a - b) orElse
-    Value.native((a: Double, b: Double) => a - b)
+  private val add: Native[F] =
+    native((a: Int, b: Int) => a + b) orElse
+    native((a: Double, b: Double) => a + b) orElse
+    native((a: String, b: String) => a + b)
 
-  def mul[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a * b) orElse
-    Value.native((a: Double, b: Double) => a * b)
+  private val sub: Native[F] =
+    native((a: Int, b: Int) => a - b) orElse
+    native((a: Double, b: Double) => a - b)
 
-  def div[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => 1.0 * a / b) orElse
-    Value.native((a: Double, b: Double) => a / b)
+  private val mul: Native[F] =
+    native((a: Int, b: Int) => a * b) orElse
+    native((a: Double, b: Double) => a * b)
 
-  def and[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Boolean, b: Boolean) => a && b)
+  private val div: Native[F] =
+    native((a: Int, b: Int) => 1.0 * a / b) orElse
+    native((a: Double, b: Double) => a / b)
 
-  def or[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Boolean, b: Boolean) => a || b)
+  private val and: Native[F] =
+    native((a: Boolean, b: Boolean) => a && b)
 
-  def eq[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Value[F], b: Value[F]) => a == b)
+  private val or: Native[F] =
+    native((a: Boolean, b: Boolean) => a || b)
 
-  def ne[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Value[F], b: Value[F]) => a != b)
+  private val eq: Native[F] =
+    native((a: Value[F], b: Value[F]) => a == b)
 
-  def gt[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a > b) orElse
-    Value.native((a: Double, b: Double) => a > b) orElse
-    Value.native((a: String, b: String) => a > b) orElse
-    Value.native((a: Boolean, b: Boolean) => a > b)
+  private val ne: Native[F] =
+    native((a: Value[F], b: Value[F]) => a != b)
 
-  def lt[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a < b) orElse
-    Value.native((a: Double, b: Double) => a < b) orElse
-    Value.native((a: String, b: String) => a < b) orElse
-    Value.native((a: Boolean, b: Boolean) => a < b)
+  private val gt: Native[F] =
+    native((a: Int, b: Int) => a > b) orElse
+    native((a: Double, b: Double) => a > b) orElse
+    native((a: String, b: String) => a > b) orElse
+    native((a: Boolean, b: Boolean) => a > b)
 
-  def gte[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a >= b) orElse
-    Value.native((a: Double, b: Double) => a >= b) orElse
-    Value.native((a: String, b: String) => a >= b) orElse
-    Value.native((a: Boolean, b: Boolean) => a >= b)
+  private val lt: Native[F] =
+    native((a: Int, b: Int) => a < b) orElse
+    native((a: Double, b: Double) => a < b) orElse
+    native((a: String, b: String) => a < b) orElse
+    native((a: Boolean, b: Boolean) => a < b)
 
-  def lte[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int, b: Int) => a <= b) orElse
-    Value.native((a: Double, b: Double) => a <= b) orElse
-    Value.native((a: String, b: String) => a <= b) orElse
-    Value.native((a: Boolean, b: Boolean) => a <= b)
+  private val gte: Native[F] =
+    native((a: Int, b: Int) => a >= b) orElse
+    native((a: Double, b: Double) => a >= b) orElse
+    native((a: String, b: String) => a >= b) orElse
+    native((a: Boolean, b: Boolean) => a >= b)
 
-  def pos[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int) => a) orElse
-    Value.native((a: Double) => a)
+  private val lte: Native[F] =
+    native((a: Int, b: Int) => a <= b) orElse
+    native((a: Double, b: Double) => a <= b) orElse
+    native((a: String, b: String) => a <= b) orElse
+    native((a: Boolean, b: Boolean) => a <= b)
 
-  def neg[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Int) => -a) orElse
-    Value.native((a: Double) => -a)
+  private val pos: Native[F] =
+    native((a: Int) => a) orElse
+    native((a: Double) => a)
 
-  def not[F[_]](implicit monad: MonadError[F, RuntimeError]): Native[F] =
-    Value.native((a: Boolean) => !a)
+  private val neg: Native[F] =
+    native((a: Int) => -a) orElse
+    native((a: Double) => -a)
 
-  def apply[F[_]](op: InfixOp)(implicit monad: MonadError[F, RuntimeError]): Native[F] =
+  private val not: Native[F] =
+    native((a: Boolean) => !a)
+
+  def infixImpl(op: InfixOp): Native[F] =
     op match {
       case InfixOp.Add  => add
       case InfixOp.Sub  => sub

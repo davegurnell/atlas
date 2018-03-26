@@ -1,11 +1,26 @@
 package atlas
 
 import atlas.syntax._
+import cats.MonadError
+import cats.data.EitherT
 import cats.implicits._
 import minitest._
+import scala.concurrent.{Future, Await, ExecutionContext}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
-object SimpleInterpreterSuite extends SimpleTestSuite {
-  import SyncInterpreter.{F, createEnv, basicEnv}
+object SyncInterpreterSuite extends SimpleInterpreterSuite(SyncInterpreter) {
+  def toEither[A](either: Either[RuntimeError, A]): Either[RuntimeError, A] =
+    either
+}
+
+object AsyncInterpreterSuite extends SimpleInterpreterSuite(new AsyncInterpreter) {
+  def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
+    Await.result(eitherT.value, 1.second)
+}
+
+abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends SimpleTestSuite {
+  import interpreter.{createEnv, basicEnv, native}
 
   test("constant") {
     assertSuccess(
@@ -45,10 +60,10 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       """
 
     val env = createEnv
-     // .set("add", (a: Int, b: Int) => a + b)
-     // .set("mul", (a: Int, b: Int) => a * b)
-     // .set("a", 2)
-     // .set("b", 3)
+     .set("add", native((a: Int, b: Int) => a + b))
+     .set("mul", native((a: Int, b: Int) => a * b))
+     .set("a", 2)
+     .set("b", 3)
 
     val expected = 26
 
@@ -98,8 +113,10 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   }
 
   def assertSuccess[A](expr: Expr, env: Env[F], expected: A)(implicit enc: ValueEncoder[F, A]): Unit =
-    assertEquals(SyncInterpreter(expr, env), Right(enc(expected)))
+    assertEquals(toEither(interpreter(expr, env)), Right(enc(expected)))
 
   def assertFailure(expr: Expr, env: Env[F], expected: RuntimeError): Unit =
-    assertEquals(SyncInterpreter(expr, env), Left(expected))
+    assertEquals(toEither(interpreter(expr, env)), Left(expected))
+
+  def toEither[A](value: F[A]): Either[RuntimeError, A]
 }

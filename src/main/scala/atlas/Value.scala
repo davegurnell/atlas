@@ -1,6 +1,7 @@
 package atlas
 
 import cats.MonadError
+import cats.data.StateT
 import cats.implicits._
 
 sealed abstract class Value[F[_]] extends Product with Serializable
@@ -26,5 +27,3 @@ final case class Native[F[_]](func: List[Value[F]] => F[Value[F]]) extends FuncV
   def orElse(that: Native[F])(implicit monad: MonadError[F, RuntimeError]): Native[F] =
     Native(args => this(args).recoverWith { case error => that(args) })
 }
-
-object Value extends NativeBoilerplate

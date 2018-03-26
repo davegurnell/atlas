@@ -11,7 +11,6 @@ trait ValueEncoder[F[_], A] {
 
 object ValueEncoder extends ValueEncoderFunctions
   with ValueEncoderInstances
-  with ValueEncoderBoilerplate
 
 trait ValueEncoderFunctions {
   def apply[F[_], A](implicit enc: ValueEncoder[F, A]): ValueEncoder[F, A] =
@@ -27,7 +26,7 @@ trait ValueEncoderFunctions {
 trait ValueEncoderInstances {
   self: ValueEncoderFunctions =>
 
-  implicit def value[F[_]]: ValueEncoder[F, Value[F]] =
+  implicit def value[F[_], A <: Value[F]]: ValueEncoder[F, A] =
     pure(value => value)
 
   implicit def boolean[F[_]]: ValueEncoder[F, Boolean] =
@@ -45,18 +44,18 @@ trait ValueEncoderInstances {
   implicit def list[F[_], A](implicit enc: ValueEncoder[F, A]): ValueEncoder[F, List[A]] =
     pure(list => ArrVal(list.map(enc.apply)))
 
-  implicit def circe[F[_]]: ValueEncoder[F, Json] =
-    pure { arg =>
-      def toAtlas(json: Json): Value[F] =
-        json.fold(
-          jsonNull    = NullVal(),
-          jsonBoolean = bool  => BoolVal(bool),
-          jsonNumber  = num   => num.toInt.fold[Value[F]](DblVal(num.toDouble))(IntVal[F]),
-          jsonString  = str   => StrVal(str),
-          jsonArray   = items => ArrVal(items.toList.map(toAtlas)),
-          jsonObject  = obj   => ObjVal(obj.toList.map { case (n, j) => (n, toAtlas(j)) })
-        )
+  // implicit def circe[F[_]]: ValueEncoder[F, Json] =
+  //   pure { arg =>
+  //     def toAtlas(json: Json): Value[F] =
+  //       json.fold(
+  //         jsonNull    = NullVal(),
+  //         jsonBoolean = bool  => BoolVal(bool),
+  //         jsonNumber  = num   => num.toInt.fold[Value[F]](DblVal(num.toDouble))(IntVal[F]),
+  //         jsonString  = str   => StrVal(str),
+  //         jsonArray   = items => ArrVal(items.toList.map(toAtlas)),
+  //         jsonObject  = obj   => ObjVal(obj.toList.map { case (n, j) => (n, toAtlas(j)) })
+  //       )
 
-      toAtlas(arg.asJson)
-    }
+  //     toAtlas(arg.asJson)
+  //   }
 }
