@@ -90,8 +90,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
   }
 
   test("object literals") {
-    import io.circe._
-    import io.circe.syntax._
+    import atlas.syntax._
 
     val code = expr"""
       {
@@ -103,11 +102,11 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
 
     val env = createEnv
 
-    val expected = Json.obj(
-      "foo" -> 2.asJson,
-      "bar" -> "ab".asJson,
-      "baz" -> List(3, 7).asJson
-    )
+    val expected = ObjVal(List(
+      "foo" -> 2.toAtlas[F],
+      "bar" -> "ab".toAtlas[F],
+      "baz" -> List(3, 7).toAtlas[F]
+    ))
 
     assertSuccess(code, env, expected)
   }

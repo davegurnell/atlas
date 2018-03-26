@@ -2,8 +2,6 @@ package atlas
 
 import cats.{Applicative, MonadError}
 import cats.syntax.all._
-import io.circe.{Encoder, Json}
-import io.circe.syntax._
 
 trait ValueEncoder[F[_], A] {
   def apply(value: A): Value[F]
@@ -43,6 +41,9 @@ trait ValueEncoderInstances {
 
   implicit def list[F[_], A](implicit enc: ValueEncoder[F, A]): ValueEncoder[F, List[A]] =
     pure(list => ArrVal(list.map(enc.apply)))
+
+  // import io.circe.{Encoder, Json}
+  // import io.circe.syntax._
 
   // implicit def circe[F[_]]: ValueEncoder[F, Json] =
   //   pure { arg =>
