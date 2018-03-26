@@ -42,10 +42,10 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       """
 
     val env = Env.create
-     .set("add", (a: Int, b: Int) => a + b)
-     .set("mul", (a: Int, b: Int) => a * b)
-     .set("a", 2)
-     .set("b", 3)
+     // .set("add", (a: Int, b: Int) => a + b)
+     // .set("mul", (a: Int, b: Int) => a * b)
+     // .set("a", 2)
+     // .set("b", 3)
 
     val expected = 26
 

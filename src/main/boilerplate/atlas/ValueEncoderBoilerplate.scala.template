@@ -1,21 +1,38 @@
 package atlas
 
 import cats.MonadError
+import cats.syntax.all._
+import scala.util.control.NonFatal
 
 trait ValueEncoderBoilerplate {
   self: ValueEncoderFunctions =>
 
   [#implicit def function1[F[_], [#A1#], R](
     implicit
+    monadError: MonadError[F, RuntimeError],
+    // interpreter: Interpreter[F],
     [#argDec1: ValueDecoder[A1]#,
     ],
     resEnc: ValueEncoder[R]
   ): ValueEncoder[([#A1#]) => R] =
     pure { func =>
-      // interpreter.applyNative(???)
+      // NativeFunc { values =>
+      //   for {
+      //     [#arg1 <- monadError.fromEither(argDec1(values(0)))#
+      //     ]
+      //     ans <- tryCatch(func([#arg1#]))
+      //   } yield resEnc(ans)
+      // }
       ???
-    }
-  #
+    }#
 
   ]
+
+  private def tryCatch[F[_], A](body: => A)(implicit monadError: MonadError[F, RuntimeError]): F[A] =
+    try {
+      body.pure[F]
+    } catch {
+      case NonFatal(exn) =>
+        RuntimeError("Error running native function", Some(exn)).raiseError[F, A]
+    }
 }

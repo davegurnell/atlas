@@ -92,7 +92,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
   test("native functions") {
     val prog = prog"""average(10, 5)"""
     val env = Env.create
-      .set("average", (a: Double, b: Double) => (a + b) / 2)
+    //   .set("average", (a: Double, b: Double) => (a + b) / 2)
     val expected = 7.5
 
     assertSuccess(prog, env, expected)
@@ -102,7 +102,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
     val prog = prog"""average(10, 5)"""
     val exn = new Exception("Badness")
     val env = Env.create
-      .set("average", (a: Double, b: Double) => { if(a > b) throw exn ; 0 })
+    //   .set("average", (a: Double, b: Double) => { if(a > b) throw exn ; 0 })
     val expected = RuntimeError("Error in native function", Some(exn))
 
     assertFailure(prog, env, expected)
