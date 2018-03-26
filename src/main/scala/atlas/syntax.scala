@@ -2,12 +2,12 @@ package atlas
 
 object syntax {
   implicit class ValueEncoderOps[A](a: A) {
-    def toAtlas(implicit enc: ValueEncoder[A]): Value =
+    def toAtlas[F[_]](implicit enc: ValueEncoder[F, A]): Value[F] =
       enc(a)
   }
 
-  implicit class ValueDecoderOps(value: Value) {
-    def toScala[A](implicit dec: ValueDecoder[A]): Either[RuntimeError, A] =
+  implicit class ValueDecoderOps[F[_]](value: Value[F]) {
+    def toScala[A](implicit dec: ValueDecoder[F, A]): F[A] =
       dec(value)
   }
 

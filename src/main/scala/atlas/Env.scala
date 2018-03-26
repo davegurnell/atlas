@@ -1,33 +1,23 @@
 package atlas
 
-final case class Env(chain: ScopeChain[String, Value]) {
-  def get(id: String): Option[Value] =
+import cats.MonadError
+
+final case class Env[F[_]](chain: ScopeChain[String, Value[F]]) {
+  def get(id: String): Option[Value[F]] =
     chain.get(id)
 
-  def set[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Env =
+  def set[A](id: String, value: A)(implicit enc: ValueEncoder[F, A]): Env[F] =
     Env(chain.set(id, enc(value)))
 
-  def destructiveSet[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Unit =
+  def destructiveSet[A](id: String, value: A)(implicit enc: ValueEncoder[F, A]): Unit =
     chain.destructiveSet(id, enc(value))
 
-  def destructiveSetAll[A](bindings: Seq[(String, A)])(implicit enc: ValueEncoder[A]): Unit =
+  def destructiveSetAll[A](bindings: Seq[(String, A)])(implicit enc: ValueEncoder[F, A]): Unit =
     chain.destructiveSetAll(bindings.map { case (n, a) => (n, enc(a)) })
 
-  def push: Env =
+  def push: Env[F] =
     Env(chain.push)
 
-  def pop: Env =
+  def pop: Env[F] =
     Env(chain.pop)
-}
-
-object Env {
-  def create: Env =
-    Env(ScopeChain.create)
-
-  def basic: Env =
-    Env.create
-      .set("map", (func: Value => Value, list: List[Value]) => list.map(func))
-      .set("flatMap", (func: Value => List[Value], list: List[Value]) => list.flatMap(func))
-      .set("filter", (func: Value => Boolean, list: List[Value]) => list.filter(func))
-      .set("flatten", (list: List[List[Value]]) => list.flatten)
 }

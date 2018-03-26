@@ -16,3 +16,4 @@ object InfixOp {
   case object Gte extends InfixOp(">=")
   case object Lte extends InfixOp("<=")
 }
+

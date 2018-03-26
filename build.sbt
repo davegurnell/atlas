@@ -60,12 +60,10 @@ addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
 
 libraryDependencies ++= Seq(
   "org.apache.commons"    %  "commons-lang3" % "3.2.1",
-  // "com.github.mpilquist" %% "simulacrum"     % "0.12.0",
+  "com.chuusai"          %% "shapeless"      % "2.3.3",
   "com.davegurnell"      %% "unindent"       % "1.1.0",
   "com.lihaoyi"          %% "fastparse"      % "1.0.0",
-  "io.circe"             %% "circe-core"     % "0.9.1",
-  "io.circe"             %% "circe-generic"  % "0.9.1",
-  "io.circe"             %% "circe-parser"   % "0.9.1",
+  "org.typelevel"        %% "cats-core"      % "1.0.0",
   "io.monix"             %% "minitest"       % "2.1.1" % Test
 )
 

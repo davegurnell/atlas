@@ -1,15 +1,38 @@
 package atlas
 
-import cats.data.{EitherT, State}
+import atlas.SyncInterpreter.Step
+import cats.MonadError
+import cats.data.{EitherT, State, StateT}
 import cats.implicits._
+import scala.util.control.NonFatal
+import scala.concurrent.{Future, ExecutionContext}
 
-object Interpreter {
-  type Step[A] = EitherT[Lambda[X => State[Env, X]], RuntimeError, A]
+object SyncInterpreter extends Interpreter[Either[RuntimeError, ?]] {
+  type F[A] = Either[RuntimeError, A]
+}
 
-  def apply(expr: Expr, env: Env = Env.create): Either[RuntimeError, Value] =
-    evalExpr(expr).value.runA(env).value
+class AsyncInterpreter(implicit ec: ExecutionContext) extends Interpreter[EitherT[Future, RuntimeError, ?]] {
+  type F[A] = EitherT[Future, RuntimeError, A]
+}
 
-  def evalExpr(expr: Expr): Step[Value] =
+abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
+  extends InterpreterBoilerplate[F]
+  with InfixImpl[F]
+  with PrefixImpl[F]
+  with NativeImpl[F] {
+
+  type Step[A] = StateT[F, Env[F], A]
+
+  // From InterpreterBoilerplate:
+  object native extends NativeFunctions
+
+  // From InterpreterBoilerplate:
+  object implicits extends NativeEncoders with NativeDecoders
+
+  def apply(expr: Expr, env: Env[F] = createEnv): F[Value[F]] =
+    evalExpr(expr).runA(env)
+
+  def evalExpr(expr: Expr): Step[Value[F]] =
     expr match {
       case expr: RefExpr    => evalRef(expr)
       case expr: LetExpr    => evalLet(expr)
@@ -20,51 +43,58 @@ object Interpreter {
       case expr: BlockExpr  => evalBlock(expr)
       case expr: SelectExpr => evalSelect(expr)
       case expr: CondExpr   => evalCond(expr)
-      case ObjExpr(fields)  => fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjVal)
-      case ArrExpr(values)  => values.traverse(evalExpr).map(ArrVal)
+      case ObjExpr(fields)  => fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjVal.apply[F])
+      case ArrExpr(values)  => values.traverse(evalExpr).map(ArrVal.apply[F])
       case StrExpr(value)   => pure(StrVal(value))
       case IntExpr(value)   => pure(IntVal(value))
       case DblExpr(value)   => pure(DblVal(value))
       case BoolExpr(value)  => pure(BoolVal(value))
-      case NullExpr         => pure(NullVal)
+      case NullExpr         => pure(NullVal())
     }
 
-  def evalRef(ref: RefExpr): Step[Value] =
+  def evalRef(ref: RefExpr): Step[Value[F]] =
     for {
       env   <- currentEnv
-      value <- env.get(ref.id).fold(fail[Value](s"Not in scope: ${ref.id}"))(pure)
+      value <- env.get(ref.id).fold(fail[Value[F]](s"Not in scope: ${ref.id}"))(pure)
     } yield value
 
-  def evalLet(let: LetExpr): Step[Value] =
+  def evalLet(let: LetExpr): Step[Value[F]] =
     for {
       value <- evalExpr(let.expr)
       _     <- inspectEnv(_.chain.destructiveSet(let.varName, value))
-    } yield NullVal
+    } yield NullVal()
 
-  def evalApp(apply: AppExpr): Step[Value] =
+  def evalApp(apply: AppExpr): Step[Value[F]] =
     for {
       func <- evalExpr(apply.func)
       args <- apply.args.traverse(evalExpr)
       ans  <- evalAppInternal(func, args)
     } yield ans
 
-  def evalInfix(infix: InfixExpr): Step[Value] =
+  def evalAppInternal(func: Value[F], args: List[Value[F]]): Step[Value[F]] =
+    func match {
+      case closure : Closure[F] => applyClosure(closure, args)
+      case native  : Native[F]  => applyNative(native, args)
+      case value                => fail(s"Cannot call $value")
+    }
+
+  def evalInfix(infix: InfixExpr): Step[Value[F]] =
     for {
       arg1 <- evalExpr(infix.arg1)
       arg2 <- evalExpr(infix.arg2)
-      ans  <- evalAppInternal(InfixImpl(infix.op), List(arg1, arg2))
+      ans  <- applyNative(infixImpl(infix.op), List(arg1, arg2))
     } yield ans
 
-  def evalPrefix(prefix: PrefixExpr): Step[Value] =
+  def evalPrefix(prefix: PrefixExpr): Step[Value[F]] =
     for {
       arg  <- evalExpr(prefix.arg)
-      ans  <- evalAppInternal(PrefixImpl(prefix.op), List(arg))
+      ans  <- applyNative(prefixImpl(prefix.op), List(arg))
     } yield ans
 
-  def evalFunc(func: FuncExpr): Step[Value] =
-    inspectEnv(env => Closure(func, env) : Value)
+  def evalFunc(func: FuncExpr): Step[Value[F]] =
+    inspectEnv(env => Closure(func, env) : Value[F])
 
-  def evalBlock(block: BlockExpr): Step[Value] =
+  def evalBlock(block: BlockExpr): Step[Value[F]] =
     pushScope {
       for {
         _    <- evalStmts(block.stmts)
@@ -80,25 +110,25 @@ object Interpreter {
   def evalStmt(stmt: Expr): Step[Unit] =
     evalExpr(stmt).map(_ => ())
 
-  def evalSelect(select: SelectExpr): Step[Value] =
+  def evalSelect(select: SelectExpr): Step[Value[F]] =
     for {
       value  <- evalExpr(select)
       result <- evalSelect(value, select.field)
     } yield result
 
-  def evalSelect(value: Value, id: String): Step[Value] =
+  def evalSelect(value: Value[F], id: String): Step[Value[F]] =
     value match {
       case ObjVal(fields) =>
-        pureEither(fields.collectFirst { case (n, v) if n == id => v } match {
-          case Some(value) => Right(value)
-          case None        => Left(RuntimeError(s"Field not found: $id"))
-        })
+        fields.collectFirst { case (n, v) if n == id => v } match {
+          case Some(value) => value.pure[Step]
+          case None        => RuntimeError(s"Field not found: $id").raiseError[Step, Value[F]]
+        }
 
       case other =>
         fail(s"Could not select field '$id' from $other")
     }
 
-  def evalCond(cond: CondExpr): Step[Value] =
+  def evalCond(cond: CondExpr): Step[Value[F]] =
     for {
       test   <- evalExpr(cond.test)
       result <- test match {
@@ -108,14 +138,7 @@ object Interpreter {
                 }
     } yield result
 
-  def evalAppInternal(func: Value, args: List[Value]): Step[Value] =
-    func match {
-      case closure : Closure => applyClosure(closure, args)
-      case native  : Native  => applyNative(native, args)
-      case value             => fail(s"Cannot call $value")
-    }
-
-  def applyClosure(closure: Closure, args: List[Value]): Step[Value] =
+  def applyClosure(closure: Closure[F], args: List[Value[F]]): Step[Value[F]] =
     replaceEnv(closure.env) {
       pushScope {
         for {
@@ -126,37 +149,26 @@ object Interpreter {
       }
     }
 
-  def applyNative(native: Native, args: List[Value]): Step[Value] =
-    native.run(args)
+  def applyNative(native: Native[F], args: List[Value[F]]): Step[Value[F]] =
+    pureF(native(args))
 
-  def pureEither[A](either: Either[RuntimeError, A]): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, either)))
+  def applyClosureF(closure: Closure[F], args: List[Value[F]]): F[Value[F]] =
+    applyClosure(closure, args).runA(closure.env)
 
-  def pure[A](value: A): Step[A] =
-    pureEither(Right(value))
+  def applyNativeF(native: Native[F], args: List[Value[F]]): F[Value[F]] =
+    applyNative(native, args).runA(createEnv)
 
-  def tryCatch[A](value: => A): Step[A] =
-   try pure(value) catch {
-     case exn: Exception =>
-       fail("Error in native function", Some(exn))
-   }
+  final val currentEnv: Step[Env[F]] =
+    inspectEnv(identity)
 
-  def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Left(RuntimeError(msg, cause)))))
+  final def pushScope[A](body: Step[A]): Step[A] =
+    for {
+      _   <- modifyEnv(_.push)
+      ans <- body
+      _   <- modifyEnv(_.pop)
+    } yield ans
 
-  def inspectEnv[A](func: Env => A): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, Right(func(env)))))
-
-  def inspectEnvEither[A](func: Env => Either[RuntimeError, A]): Step[A] =
-    EitherT(State[Env, Either[RuntimeError, A]](env => (env, func(env))))
-
-  val currentEnv: Step[Env] =
-    EitherT(State[Env, Either[RuntimeError, Env]](env => (env, Right(env))))
-
-  def modifyEnv(f: Env => Env): Step[Unit] =
-    EitherT(State[Env, Either[RuntimeError, Unit]](env => (f(env), Right(()))))
-
-  def replaceEnv[A](env: Env)(body: Step[A]): Step[A] =
+  final def replaceEnv[A](env: Env[F])(body: Step[A]): Step[A] =
     for {
       env0 <- currentEnv
       _    <- modifyEnv(_ => env)
@@ -164,10 +176,32 @@ object Interpreter {
       _    <- modifyEnv(_ => env0)
     } yield ans
 
-  def pushScope[A](body: Step[A]): Step[A] =
-    for {
-      _   <- modifyEnv(_.push)
-      ans <- body
-      _   <- modifyEnv(_.pop)
-    } yield ans
+  final def pure[A](value: A): Step[A] =
+    pureF(value.pure[F])
+
+  def pureF[A](fa: F[A]): Step[A] =
+    StateT.apply((env: Env[F]) => fa.map(a => (env, a)))
+
+  def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
+    RuntimeError(msg, cause).raiseError[Step, A]
+
+  final def inspectEnv[A](func: Env[F] => A): Step[A] =
+    inspectEnvF(env => func(env).pure[F])
+
+  final def inspectEnvF[A](func: Env[F] => F[A]): Step[A] =
+    StateT.inspectF(func)
+
+  final def modifyEnv(func: Env[F] => Env[F]): Step[Unit] =
+    modifyEnvF(env => func(env).pure[F])
+
+  final def modifyEnvF(func: Env[F] => F[Env[F]]): Step[Unit] =
+    StateT.modifyF(func)
+
+  final def catchNonFatalF[A](body: => A): F[A] =
+    try {
+      body.pure[F]
+    } catch {
+      case NonFatal(exn) =>
+        RuntimeError("Error executing native code", Some(exn)).raiseError[F, A]
+    }
 }

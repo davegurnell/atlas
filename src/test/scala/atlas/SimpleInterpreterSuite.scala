@@ -1,13 +1,31 @@
 package atlas
 
 import atlas.syntax._
+import cats.MonadError
+import cats.data.EitherT
+import cats.implicits._
 import minitest._
+import scala.concurrent.{Future, Await, ExecutionContext}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
-object SimpleInterpreterSuite extends SimpleTestSuite {
+object SyncInterpreterSuite extends SimpleInterpreterSuite(SyncInterpreter) {
+  def toEither[A](either: Either[RuntimeError, A]): Either[RuntimeError, A] =
+    either
+}
+
+object AsyncInterpreterSuite extends SimpleInterpreterSuite(new AsyncInterpreter) {
+  def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
+    Await.result(eitherT.value, 1.second)
+}
+
+abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends SimpleTestSuite {
+  import interpreter.{createEnv, basicEnv, native}
+
   test("constant") {
     assertSuccess(
       expr"true",
-      Env.create,
+      createEnv,
       true
     )
   }
@@ -15,7 +33,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   test("infix") {
     assertSuccess(
       expr"1 + 2 + 3",
-      Env.create,
+      createEnv,
       6
     )
   }
@@ -23,7 +41,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   test("variable reference") {
     assertSuccess(
       expr"foo",
-      Env.create.set("foo", true),
+      createEnv.set("foo", true),
       true
     )
   }
@@ -31,7 +49,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   test("variable not in env") {
     assertFailure(
       expr"foo",
-      Env.create,
+      createEnv,
       RuntimeError("Not in scope: foo")
     )
   }
@@ -41,9 +59,9 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       add(mul(a, b), mul(4, 5))
       """
 
-    val env = Env.create
-     .set("add", (a: Int, b: Int) => a + b)
-     .set("mul", (a: Int, b: Int) => a * b)
+    val env = createEnv
+     .set("add", native((a: Int, b: Int) => a + b))
+     .set("mul", native((a: Int, b: Int) => a * b))
      .set("a", 2)
      .set("b", 3)
 
@@ -64,7 +82,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       end
       """
 
-    val env = Env.create
+    val env = createEnv
 
     val expected = 123
 
@@ -72,8 +90,7 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
   }
 
   test("object literals") {
-    import io.circe._
-    import io.circe.syntax._
+    import atlas.syntax._
 
     val code = expr"""
       {
@@ -83,20 +100,22 @@ object SimpleInterpreterSuite extends SimpleTestSuite {
       }
       """
 
-    val env = Env.create
+    val env = createEnv
 
-    val expected = Json.obj(
-      "foo" -> 2.asJson,
-      "bar" -> "ab".asJson,
-      "baz" -> List(3, 7).asJson
-    )
+    val expected = ObjVal(List(
+      "foo" -> 2.toAtlas[F],
+      "bar" -> "ab".toAtlas[F],
+      "baz" -> List(3, 7).toAtlas[F]
+    ))
 
     assertSuccess(code, env, expected)
   }
 
-  def assertSuccess[A](expr: Expr, env: Env, expected: A)(implicit enc: ValueEncoder[A]): Unit =
-    assertEquals(Interpreter(expr, env), Right(enc(expected)))
+  def assertSuccess[A](expr: Expr, env: Env[F], expected: A)(implicit enc: ValueEncoder[F, A]): Unit =
+    assertEquals(toEither(interpreter(expr, env)), Right(enc(expected)))
 
-  def assertFailure(expr: Expr, env: Env, expected: RuntimeError): Unit =
-    assertEquals(Interpreter(expr, env), Left(expected))
+  def assertFailure(expr: Expr, env: Env[F], expected: RuntimeError): Unit =
+    assertEquals(toEither(interpreter(expr, env)), Left(expected))
+
+  def toEither[A](value: F[A]): Either[RuntimeError, A]
 }
