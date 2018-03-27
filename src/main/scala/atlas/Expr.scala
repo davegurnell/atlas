@@ -18,6 +18,7 @@ final case class FuncArg(argName: String)
 final case class BlockExpr(stmts: List[Expr], expr: Expr) extends Expr
 final case class SelectExpr(expr: Expr, field: String) extends Expr
 final case class CondExpr(test: Expr, trueArm: Expr, falseArm: Expr) extends Expr
+final case class ParenExpr(expr: Expr) extends Expr
 
 final case class ObjExpr(fields: List[(String, Expr)]) extends Expr
 final case class ArrExpr(exprs: List[Expr]) extends Expr
@@ -42,6 +43,7 @@ object Expr {
       case BlockExpr(s, e)    => show"do${s.map(_.show).mkString(" ", "; ", ";")} $e end"
       case SelectExpr(a, b)   => show"$a.$b"
       case CondExpr(a, b, c)  => show"if $a then $b else $c"
+      case ParenExpr(a)       => show"($a)"
       case ObjExpr(fs)        => show"{${fs.map { case (n, e) => show"$n: $e" }.mkString(" ", ", ", " ")}}"
       case ArrExpr(as)        => show"[${as.map(_.show).mkString(" ", ", ", " ")}]"
       case StrExpr(v)         => show"'${v.replaceAll("'", "\'")}'"

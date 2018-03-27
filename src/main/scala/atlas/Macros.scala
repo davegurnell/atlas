@@ -88,6 +88,7 @@ class Macros(val c: blackbox.Context) {
           case BlockExpr(stmts, expr)     => q"$pkg.BlockExpr($stmts, $expr)"
           case SelectExpr(expr, ref)      => q"$pkg.SelectExpr($expr, $ref)"
           case CondExpr(test, arm1, arm2) => q"$pkg.CondExpr($test, $arm1, $arm2)"
+          case ParenExpr(expr)            => q"$pkg.ParenExpr($expr)"
           case ObjExpr(fields)            => q"$pkg.ObjExpr($fields)"
           case ArrExpr(items)             => q"$pkg.ArrExpr($items)"
           case StrExpr(value)             => q"$pkg.StrExpr($value)"
