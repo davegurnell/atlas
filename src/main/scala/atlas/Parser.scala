@@ -147,8 +147,13 @@ trait AllParsers {
     P(doubleQuoted | singleQuoted)
   }
 
+  import fastparse.core.Implicits.Sequencer
+  def loc[A, R](parser: Parser[A])(implicit seqr: Sequencer[A, SourceLoc, R]): Parser[R] =
+    P(Index ~ parser ~ Index).map { case (start, value, end) => seqr(value, SourceLoc(start, end)) }
+
   def ref(p: Parser[Unit]): Parser[RefExpr] =
-    P(p.!.map(RefExpr))
+    P(loc(p.!))
+      .map { case (ident, loc) => RefExpr(ident, loc) }
 
   // -----
 
@@ -164,7 +169,8 @@ trait AllParsers {
   // -----
 
   val prog: Parser[Expr] =
-    P(stmt.rep(min = 1, sep = nl)).flatMap(validateBlock)
+    P(loc(stmt.rep(min = 1, sep = nl)))
+      .flatMap { case (stmts, loc) => validateBlock(stmts, loc)(ProgExpr) }
 
   // -----
 
@@ -174,8 +180,8 @@ trait AllParsers {
   // -----
 
   val let: Parser[Expr] =
-    P(letKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ expr)
-      .map { case (name, expr) => LetExpr(name, expr) }
+    P(loc(letKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ expr))
+      .map { case (name, expr, loc) => LetExpr(name, expr, loc) }
 
   // -----
 
@@ -184,15 +190,15 @@ trait AllParsers {
 
   // -----
 
-  def validateBlock(stmts: Seq[Expr]): Parser[Expr] =
+  def validateBlock(stmts: Seq[Expr], loc: SourceLoc)(createExpr: (List[Expr], Expr, SourceLoc) => Expr): Parser[Expr] =
     (stmts.init, stmts.last) match {
       case (stmts, expr: LetExpr) => Fail // BlockExpr(stmts, expr)
-      case (stmts, expr)          => Pass.map(_ => BlockExpr(stmts.toList, expr))
+      case (stmts, expr)          => Pass.map(_ => createExpr(stmts.toList, expr, loc))
     }
 
   val blockHit: Parser[Expr] =
-    P(doKw ~ ws ~ stmt.rep(min = 1, sep = nl) ~ ws ~ endKw)
-      .flatMap(validateBlock)
+    P(loc(doKw ~ ws ~ stmt.rep(min = 1, sep = nl) ~ ws ~ endKw))
+      .flatMap { case (stmts, loc) => validateBlock(stmts, loc)(BlockExpr) }
 
   val block: Parser[Expr] =
     P(blockHit | cond)
@@ -200,8 +206,8 @@ trait AllParsers {
   // -----
 
   val condHit: Parser[Expr] =
-    P(ifKw ~ ws ~ expr ~ ws ~ thenKw ~ ws ~ expr ~ ws ~ elseKw ~ ws ~ expr)
-      .map { case (test, ifTrue, ifFalse) => CondExpr(test, ifTrue, ifFalse) }
+    P(loc(ifKw ~ ws ~ expr ~ ws ~ thenKw ~ ws ~ expr ~ ws ~ elseKw ~ ws ~ expr))
+      .map { case (test, ifTrue, ifFalse, loc) => CondExpr(test, ifTrue, ifFalse, loc) }
 
   val cond: Parser[Expr] =
     P(condHit | infix)
@@ -209,11 +215,11 @@ trait AllParsers {
   // -----
 
   def createInfix(op: Parser[InfixOp], subExpr: Parser[Expr]): Parser[Expr] =
-    P(subExpr ~ (ws ~ op ~ ws ~ subExpr).rep).map {
-      case (head, tail) =>
-        tail.foldLeft(head) { (a, pair) =>
-          val (op, b) = pair
-          InfixExpr(op, a, b)
+    P(Index ~ subExpr ~ (ws ~ op ~ ws ~ subExpr ~ Index).rep).map {
+      case (start, head, tail) =>
+        tail.foldLeft(head) { (a, triple) =>
+          val (op, b, end) = triple
+          InfixExpr(op, a, b, SourceLoc(start, end))
         }
     }
 
@@ -223,8 +229,8 @@ trait AllParsers {
   // -----
 
   val prefixHit: Parser[Expr] =
-    P(prefixOp ~ ws ~ prefix)
-      .map { case (op, arg) => PrefixExpr(op, arg) }
+    P(loc(prefixOp ~ ws ~ prefix))
+      .map { case (op, arg, loc) => PrefixExpr(op, arg, loc) }
 
   val prefix: Parser[Expr] =
     P(prefixHit | select)
@@ -232,14 +238,21 @@ trait AllParsers {
   // -----
 
   val select: Parser[Expr] =
-    P(apply ~ (ws ~ "." ~ ws ~ ident).rep)
-      .map { case (head, tail) => tail.foldLeft(head)(SelectExpr) }
+    P(Index ~ apply ~ (ws ~ "." ~ ws ~ ident ~ Index).rep)
+      .map { case (start, head, tail) =>
+        tail.foldLeft(head) { (accum, pair) =>
+          val (ident, end) = pair
+          SelectExpr(accum, ident, SourceLoc(start, end))
+        }
+      }
 
   // -----
 
   val applyHit: Parser[Expr] =
-    P(ident ~ ws ~ "(" ~/ ws ~ expr.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")")
-      .map { case (name, args) => AppExpr(RefExpr(name), args.toList) }
+    P(Index ~ ident ~ Index ~ ws ~ "(" ~/ ws ~ expr.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ Index)
+      .map { case (start, name, middle, args, end) =>
+        AppExpr(RefExpr(name, SourceLoc(start, middle)), args.toList, SourceLoc(start, end))
+      }
 
   val apply: Parser[Expr] =
     P(applyHit | func)
@@ -250,12 +263,12 @@ trait AllParsers {
     P(ident).map(FuncArg)
 
   val parenFuncHit: Parser[Expr] =
-    P("(" ~ ws ~ arg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (args, expr) => FuncExpr(args.toList, expr) }
+    P(loc("(" ~ ws ~ arg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr))
+      .map { case (args, expr, loc) => FuncExpr(args.toList, expr, loc) }
 
   val noParenFuncHit: Parser[Expr] =
-    P(ident ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (name, expr) => FuncExpr(List(FuncArg(name)), expr) }
+    P(loc(ident ~ ws ~ "->" ~ ws ~/ expr))
+      .map { case (name, expr, loc) => FuncExpr(List(FuncArg(name)), expr, loc) }
 
   val func: Parser[Expr] =
     P(parenFuncHit | noParenFuncHit | obj)
@@ -266,9 +279,8 @@ trait AllParsers {
     P((ident | stringToken) ~ ws ~/ ":" ~ ws ~/ expr)
 
   val objHit: Parser[Expr] =
-    P("{" ~ ws ~/ field.rep(sep = ws ~ "," ~ ws.~/) ~ ws ~ "}".~/)
-      .map(_.toList)
-      .map(ObjExpr)
+    P(loc("{" ~ ws ~/ field.rep(sep = ws ~ "," ~ ws.~/) ~ ws ~ "}".~/))
+      .map { case (fields, loc) => ObjExpr(fields.toList, loc) }
 
   val obj: Parser[Expr] =
     P(objHit | arr)
@@ -276,9 +288,8 @@ trait AllParsers {
   // -----
 
   val arrHit: Parser[Expr] =
-    P("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/)
-      .map(_.toList)
-      .map(ArrExpr)
+    P(loc("[" ~ ws ~/ expr.rep(sep = ws ~ "," ~/ ws) ~ ws ~ "]".~/))
+      .map { case (items, loc) => ArrExpr(items.toList, loc) }
 
   val arr: Parser[Expr] =
     P(arrHit | paren)
@@ -286,7 +297,8 @@ trait AllParsers {
   // -----
 
   val parenHit: Parser[Expr] =
-    P("(" ~ ws ~ expr ~ ws ~ ")")
+    P(loc("(" ~ ws ~ expr ~ ws ~ ")"))
+      .map { case (expr, loc) => ParenExpr(expr, loc) }
 
   val paren: Parser[Expr] =
     P(parenHit | atom)
@@ -297,23 +309,28 @@ trait AllParsers {
     P(str | double | int | trueExpr | falseExpr | nullExpr | ref)
 
   val str: Parser[Expr] =
-    P(stringToken).map(StrExpr)
+    P(loc(stringToken))
+      .map { case (str, loc) => StrExpr(str, loc) }
 
   val double: Parser[Expr] =
-    P(doubleToken).map(_.toDouble).map(DblExpr)
+    P(loc(doubleToken))
+      .map { case (str, loc) => DblExpr(str.toDouble, loc) }
 
   val int: Parser[Expr] =
-    P(intToken).map(_.toInt).map(IntExpr)
+    P(loc(intToken))
+      .map { case (str, loc) => IntExpr(str.toInt, loc) }
 
   val trueExpr: Parser[Expr] =
-    P(trueKw).map(_ => BoolExpr(true))
+    P(loc(trueKw)).map(BoolExpr(true, _))
 
   val falseExpr: Parser[Expr] =
-    P(falseKw).map(_ => BoolExpr(false))
+    P(loc(falseKw)).map(BoolExpr(false, _))
 
   val nullExpr: Parser[Expr] =
-    P(nullKw).map(_ => NullExpr)
+    P(loc(nullKw)).map(NullExpr)
 
   val ref: Parser[Expr] =
-    P(ident.map(RefExpr))
+    P(loc(ident))
+      .map { case (ident, loc) => RefExpr(ident, loc) }
 }
+

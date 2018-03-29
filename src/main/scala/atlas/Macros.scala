@@ -79,24 +79,31 @@ class Macros(val c: blackbox.Context) {
     new Liftable[Expr] {
       def apply(expr: Expr): Tree =
         expr match {
-          case RefExpr(id)                => q"$pkg.RefExpr($id)"
-          case LetExpr(name, expr)        => q"$pkg.LetExpr($name, $expr)"
-          case AppExpr(func, args)        => q"$pkg.AppExpr($func, $args)"
-          case InfixExpr(op, arg1, arg2)  => q"$pkg.InfixExpr($op, $arg1, $arg2)"
-          case PrefixExpr(op, arg)        => q"$pkg.PrefixExpr($op, $arg)"
-          case FuncExpr(args, body)       => q"$pkg.FuncExpr($args, $body)"
-          case BlockExpr(stmts, expr)     => q"$pkg.BlockExpr($stmts, $expr)"
-          case SelectExpr(expr, ref)      => q"$pkg.SelectExpr($expr, $ref)"
-          case CondExpr(test, arm1, arm2) => q"$pkg.CondExpr($test, $arm1, $arm2)"
-          case ParenExpr(expr)            => q"$pkg.ParenExpr($expr)"
-          case ObjExpr(fields)            => q"$pkg.ObjExpr($fields)"
-          case ArrExpr(items)             => q"$pkg.ArrExpr($items)"
-          case StrExpr(value)             => q"$pkg.StrExpr($value)"
-          case IntExpr(value)             => q"$pkg.IntExpr($value)"
-          case DblExpr(value)             => q"$pkg.DblExpr($value)"
-          case BoolExpr(value)            => q"$pkg.BoolExpr($value)"
-          case NullExpr                   => q"$pkg.NullExpr"
+          case RefExpr(id, loc)                => q"$pkg.RefExpr($id, $loc)"
+          case LetExpr(name, expr, loc)        => q"$pkg.LetExpr($name, $expr, $loc)"
+          case AppExpr(func, args, loc)        => q"$pkg.AppExpr($func, $args, $loc)"
+          case InfixExpr(op, arg1, arg2, loc)  => q"$pkg.InfixExpr($op, $arg1, $arg2, $loc)"
+          case PrefixExpr(op, arg, loc)        => q"$pkg.PrefixExpr($op, $arg, $loc)"
+          case FuncExpr(args, body, loc)       => q"$pkg.FuncExpr($args, $body, $loc)"
+          case ProgExpr(stmts, expr, loc)      => q"$pkg.ProgExpr($stmts, $expr, $loc)"
+          case BlockExpr(stmts, expr, loc)     => q"$pkg.BlockExpr($stmts, $expr, $loc)"
+          case SelectExpr(expr, ref, loc)      => q"$pkg.SelectExpr($expr, $ref, $loc)"
+          case CondExpr(test, arm1, arm2, loc) => q"$pkg.CondExpr($test, $arm1, $arm2, $loc)"
+          case ParenExpr(expr, loc)            => q"$pkg.ParenExpr($expr, $loc)"
+          case ObjExpr(fields, loc)            => q"$pkg.ObjExpr($fields, $loc)"
+          case ArrExpr(items, loc)             => q"$pkg.ArrExpr($items, $loc)"
+          case StrExpr(value, loc)             => q"$pkg.StrExpr($value, $loc)"
+          case IntExpr(value, loc)             => q"$pkg.IntExpr($value, $loc)"
+          case DblExpr(value, loc)             => q"$pkg.DblExpr($value, $loc)"
+          case BoolExpr(value, loc)            => q"$pkg.BoolExpr($value, $loc)"
+          case NullExpr(loc)                   => q"$pkg.NullExpr($loc)"
         }
+    }
+
+  implicit lazy val sourceLocLiftable: Liftable[SourceLoc] =
+    new Liftable[SourceLoc] {
+      def apply(loc: SourceLoc): Tree =
+        q"$pkg.SourceLoc(${loc.start}, ${loc.end})"
     }
 
   implicit lazy val argLiftable: Liftable[FuncArg] =
