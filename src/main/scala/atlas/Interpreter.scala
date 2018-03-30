@@ -45,7 +45,6 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
     monitoringChecks {
       expr match {
         case expr: RefExpr    => evalRef(expr)
-        case expr: LetExpr    => evalLet(expr)
         case expr: AppExpr    => evalApp(expr)
         case expr: InfixExpr  => evalInfix(expr)
         case expr: PrefixExpr => evalPrefix(expr)
@@ -69,12 +68,6 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
       env   <- currentEnv
       value <- env.get(ref.id).fold(fail[Value[F]](s"Not in scope: ${ref.id}"))(pure)
     } yield value
-
-  def evalLet(let: LetExpr): Step[Value[F]] =
-    for {
-      value <- evalExpr(let.expr)
-      _     <- inspectEnv(_.chain.destructiveSet(let.varName, value))
-    } yield NullVal()
 
   def evalApp(apply: AppExpr): Step[Value[F]] =
     for {
@@ -114,13 +107,25 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
       } yield ans
     }
 
-  def evalStmts(stmts: List[Expr]): Step[Unit] =
+  def evalStmts(stmts: List[Stmt]): Step[Unit] =
     stmts.foldLeft(pure(())) { (a, b) =>
       a.flatMap(_ => evalStmt(b))
     }
 
-  def evalStmt(stmt: Expr): Step[Unit] =
-    evalExpr(stmt).map(_ => ())
+  def evalStmt(stmt: Stmt): Step[Unit] =
+    stmt match {
+      case stmt: LetStmt  => evalLetStmt(stmt)
+      case stmt: ExprStmt => evalExprStmt(stmt)
+    }
+
+  def evalLetStmt(stmt: LetStmt): Step[Unit] =
+    for {
+      value <- evalExpr(stmt.expr)
+      _     <- inspectEnv(_.chain.destructiveSet(stmt.varName, value))
+    } yield NullVal()
+
+  def evalExprStmt(stmt: ExprStmt): Step[Unit] =
+    evalExpr(stmt.expr).map(_ => ())
 
   def evalSelect(select: SelectExpr): Step[Value[F]] =
     for {

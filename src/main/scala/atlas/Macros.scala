@@ -80,7 +80,6 @@ class Macros(val c: blackbox.Context) {
       def apply(expr: Expr): Tree =
         expr match {
           case RefExpr(id)                => q"$pkg.RefExpr($id)"
-          case LetExpr(name, expr)        => q"$pkg.LetExpr($name, $expr)"
           case AppExpr(func, args)        => q"$pkg.AppExpr($func, $args)"
           case InfixExpr(op, arg1, arg2)  => q"$pkg.InfixExpr($op, $arg1, $arg2)"
           case PrefixExpr(op, arg)        => q"$pkg.PrefixExpr($op, $arg)"
@@ -96,6 +95,15 @@ class Macros(val c: blackbox.Context) {
           case DblExpr(value)             => q"$pkg.DblExpr($value)"
           case BoolExpr(value)            => q"$pkg.BoolExpr($value)"
           case NullExpr                   => q"$pkg.NullExpr"
+        }
+    }
+
+  implicit lazy val stmtLiftable: Liftable[Stmt] =
+    new Liftable[Stmt] {
+      def apply(stmt: Stmt): Tree =
+        stmt match {
+          case LetStmt(name, expr) => q"$pkg.LetStmt($name, $expr)"
+          case ExprStmt(expr)      => q"$pkg.ExprStmt($expr)"
         }
     }
 

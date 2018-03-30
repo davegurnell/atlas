@@ -168,14 +168,17 @@ trait AllParsers {
 
   // -----
 
-  val stmt: Parser[Expr] =
-    P(let | expr)
+  val stmt: Parser[Stmt] =
+    P(letStmt | exprStmt)
 
   // -----
 
-  val let: Parser[Expr] =
+  val letStmt: Parser[Stmt] =
     P(letKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ expr)
-      .map { case (name, expr) => LetExpr(name, expr) }
+      .map { case (name, expr) => LetStmt(name, expr) }
+
+  val exprStmt: Parser[Stmt] =
+    P(expr).map(ExprStmt)
 
   // -----
 
@@ -184,10 +187,10 @@ trait AllParsers {
 
   // -----
 
-  def validateBlock(stmts: Seq[Expr]): Parser[Expr] =
+  def validateBlock(stmts: Seq[Stmt]): Parser[Expr] =
     (stmts.init, stmts.last) match {
-      case (stmts, expr: LetExpr) => Fail // BlockExpr(stmts, expr)
-      case (stmts, expr)          => Pass.map(_ => BlockExpr(stmts.toList, expr))
+      case (stmts, last: LetStmt)  => Fail // BlockExpr(stmts, expr)
+      case (stmts, last: ExprStmt) => Pass.map(_ => BlockExpr(stmts.toList, last.expr))
     }
 
   val blockHit: Parser[Expr] =

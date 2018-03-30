@@ -383,7 +383,7 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       b end
       """,
       BlockExpr(
-        List(RefExpr("a")),
+        List(ExprStmt(RefExpr("a"))),
         RefExpr("b")))
 
     assert.failure(
@@ -400,16 +400,16 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       """,
       BlockExpr(
         List(
-          RefExpr("a"),
-          RefExpr("b")),
+          ExprStmt(RefExpr("a")),
+          ExprStmt(RefExpr("b"))),
         RefExpr("c")))
 
     assert.complete(
       "do;a;b;c;end",
       BlockExpr(
         List(
-          RefExpr("a"),
-          RefExpr("b")),
+          ExprStmt(RefExpr("a")),
+          ExprStmt(RefExpr("b"))),
         RefExpr("c")))
 
     assert.failure("do a b c end", 0)
@@ -446,9 +446,9 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   object assert extends Assertions(stmt)
 
   test("defn") {
-    assert.complete("let a = b", LetExpr("a", RefExpr("b")))
+    assert.complete("let a = b", LetStmt("a", RefExpr("b")))
 
-    assert.complete("let a = b -> c", LetExpr(
+    assert.complete("let a = b -> c", LetStmt(
       "a",
       FuncExpr(
         List(FuncArg("b")),
@@ -458,7 +458,7 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       i"""
       let add = ( a, b ) -> a + b
       """,
-      LetExpr(
+      LetStmt(
         "add",
         FuncExpr(
           List(FuncArg("a"), FuncArg("b")),
@@ -468,7 +468,7 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
   test("expr") {
     assert.complete(
       "a + b",
-      InfixExpr(InfixOp.Add, RefExpr("a"), RefExpr("b")))
+      ExprStmt(InfixExpr(InfixOp.Add, RefExpr("a"), RefExpr("b"))))
   }
 }
 
