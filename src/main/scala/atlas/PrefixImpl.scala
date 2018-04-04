@@ -1,7 +1,5 @@
 package atlas
 
-import cats.MonadError
-
 trait PrefixImpl[F[_]] {
   self: Interpreter[F] =>
 

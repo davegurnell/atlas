@@ -1,8 +1,5 @@
 package atlas
 
-import cats.{Applicative, MonadError}
-import cats.syntax.all._
-
 trait ValueEncoder[F[_], A] {
   def apply(value: A): Value[F]
 }

@@ -1,6 +1,6 @@
 package atlas
 
-import cats.data.{EitherT, IndexedStateT, StateT}
+import cats.data.{EitherT, StateT}
 import cats.implicits._
 import cats.{Eval, MonadError}
 

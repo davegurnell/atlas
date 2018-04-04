@@ -1,7 +1,7 @@
 package atlas
 
-import cats.{Applicative, ApplicativeError, MonadError, Traverse}
 import cats.implicits._
+import cats.{Applicative, ApplicativeError}
 
 trait ValueDecoder[F[_], A] {
   def apply(value: Value[F]): F[A]

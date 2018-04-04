@@ -1,6 +1,5 @@
 package atlas
 
-import cats.MonadError
 import cats.implicits._
 
 trait NativeImpl[F[_]] {
