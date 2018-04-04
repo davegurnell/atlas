@@ -1,44 +1,49 @@
 package atlas
 
-import atlas.SyncInterpreter.Step
-import cats.{Eval, MonadError}
-import cats.data.{EitherT, State, StateT}
+import cats.data.{EitherT, IndexedStateT, StateT}
 import cats.implicits._
+import cats.{Eval, MonadError}
+
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
-import scala.concurrent.{Future, ExecutionContext}
 
-object SyncInterpreter extends Interpreter[EitherT[Eval, RuntimeError, ?]] {
-  type F[A] = EitherT[Eval, RuntimeError, A]
+object Interpreter {
+  val sync: Interpreter[EitherT[Eval, RuntimeError, ?]] =
+    new Interpreter[EitherT[Eval, RuntimeError, ?]]
+
+  def async(implicit ec: ExecutionContext): Interpreter[EitherT[Future, RuntimeError, ?]] =
+    new Interpreter[EitherT[Future, RuntimeError, ?]]
 }
 
-class AsyncInterpreter(implicit ec: ExecutionContext) extends Interpreter[EitherT[Future, RuntimeError, ?]] {
-  type F[A] = EitherT[Future, RuntimeError, A]
-}
-
-abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
+class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
   extends InterpreterBoilerplate[F]
   with InfixImpl[F]
   with PrefixImpl[F]
   with NativeImpl[F] {
 
-  /** Wrap F[_] in a state monad to track IState */
+  /** Alias for F[_] so we can refer to it outside the interpreter */
+  type Out[A] = F[A]
+
+  /** Wrap F[_] in a state monad to track interpreter state */
   type Step[A] = EvalStep[F, A]
 
   /**
    * Helpers for creating Native functions:
-   *
    * - apply(func) - creates a Native from a function (A, B, ...) => R
-   * - applyF(func) - creates a Native from a function (A, B, ...) => F[R]
+   * - pure(func) - creates a Native from a function (A, B, ...) => Step[R]
    */
   object native extends NativeFunctions
 
   /**
    * ValueEncoders/ValueDecoders for functions.
-   * These encode/decoder functions of the form (A, B, ...) => F[R].
+   * These encode/decoder functions of the form (A, B, ...) => Step[R].
    */
   object implicits extends NativeEncoders with NativeDecoders
 
-  def apply(expr: Expr, env: Env[F] = createEnv): F[Value[F]] =
+  def evalAs[A](expr: Expr, env: Env[F] = Env.create)(implicit dec: ValueDecoder[F, A]): F[A] =
+    eval(expr, env).flatMap(dec.apply)
+
+  def eval(expr: Expr, env: Env[F] = Env.create): F[Value[F]] =
     evalExpr(expr).runA(env)
 
   def evalExpr(expr: Expr): Step[Value[F]] =
@@ -53,8 +58,8 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
         case expr: SelectExpr => evalSelect(expr)
         case expr: CondExpr   => evalCond(expr)
         case ParenExpr(expr)  => evalExpr(expr)
-        case ObjExpr(fields)  => fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjVal.apply[F])
-        case ArrExpr(values)  => values.traverse(evalExpr).map(ArrVal.apply[F])
+        case expr: ObjExpr    => evalObj(expr)
+        case expr: ArrExpr    => evalArr(expr)
         case StrExpr(value)   => pure(StrVal(value))
         case IntExpr(value)   => pure(IntVal(value))
         case DblExpr(value)   => pure(DblVal(value))
@@ -154,6 +159,12 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
                   case _              => fail(s"Conditional test was not a Boolean")
                 }
     } yield result
+
+  def evalObj(obj: ObjExpr): Step[Value[F]] =
+    obj.fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjVal[F])
+
+  def evalArr(arr: ArrExpr): Step[Value[F]] =
+    arr.exprs.traverse(evalExpr).map(ArrVal[F])
 
   def applyClosure(closure: Closure[F], args: List[Value[F]]): Step[Value[F]] =
     replaceEnv(closure.env) {

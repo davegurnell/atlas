@@ -1,12 +1,27 @@
 package atlas
 
-import cats.MonadError
+import cats.{Eval, MonadError}
+import cats.data.EitherT
 import cats.implicits._
 import minitest._
 import syntax._
 
-object ProgramInterpreterSuite extends SimpleTestSuite {
-  import SyncInterpreter.{F, createEnv, basicEnv}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+
+object SyncProgramSuite extends ProgramSuite(Interpreter.sync) {
+  def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
+    either.value.value
+}
+
+object AsyncProgramSuite extends ProgramSuite(Interpreter.async) {
+  def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
+    Await.result(eitherT.value, 1.second)
+}
+
+abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends SimpleTestSuite {
+  import interpreter.native
 
   test("recursive odd/even") {
     val code = prog"""
@@ -15,7 +30,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       even(10)
       """
-    val env = createEnv
+    val env = Env.create[F]
     val expected = true
 
     assertSuccess(code, env, expected)
@@ -30,7 +45,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       factorial(10)
       """
-    val env = createEnv
+    val env = Env.create[F]
     val expected = (1 to 10).foldLeft(1)(_ * _)
 
     assertSuccess(prog, env, expected)
@@ -45,7 +60,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       fib(10)
       """
-    val env = createEnv
+    val env = Env.create[F]
     val expected = 55
 
     assertSuccess(prog, env, expected)
@@ -64,7 +79,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
       filter(inBounds, flatten(map(double, values)))
       """
-    val env = basicEnv
+    val env = interpreter.basicEnv
     val expected = List(2, 5, 10, 7, 14)
 
     assertSuccess(prog, env, expected)
@@ -87,7 +102,7 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
       )# Comment
       # Comment
       """
-    val env = createEnv
+    val env = Env.create[F]
     val expected = 42
 
     assertSuccess(prog, env, expected)
@@ -95,8 +110,8 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
 
   test("native functions") {
     val prog = prog"""average(10, 5)"""
-    val env = SyncInterpreter.createEnv
-      .set("average", SyncInterpreter.native((a: Double, b: Double) => (a + b) / 2))
+    val env = Env.create[F]
+      .set("average", native((a: Double, b: Double) => (a + b) / 2))
     val expected = 7.5
 
     assertSuccess(prog, env, expected)
@@ -105,16 +120,18 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
   test("native functions with exceptions") {
     val prog = prog"""average(10, 5)"""
     val exn = new Exception("Badness")
-    val env = createEnv
-      .set("average", SyncInterpreter.native((a: Double, b: Double) => { if(a > b) throw exn ; 0 }))
+    val env = Env.create[F]
+      .set("average", native((a: Double, b: Double) => { if(a > b) throw exn ; 0 }))
     val expected = RuntimeError("Error executing native code", Some(exn))
 
     assertFailure(prog, env, expected)
   }
 
   def assertSuccess[A](prog: Expr, env: Env[F], expected: A)(implicit dec: ValueDecoder[F, A]): Unit =
-    assertEquals(SyncInterpreter(prog, env).flatMap(dec.apply).value.value, Right(expected))
+    assertEquals(toEither(interpreter.evalAs[A](prog, env)), Right(expected))
 
   def assertFailure(prog: Expr, env: Env[F], expected: RuntimeError): Unit =
-    assertEquals(SyncInterpreter(prog, env).value.value, Left(expected))
+    assertEquals(toEither(interpreter.eval(prog, env)), Left(expected))
+
+  def toEither[A](value: F[A]): Either[RuntimeError, A]
 }

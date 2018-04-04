@@ -1,8 +1,5 @@
 package atlas
 
-import cats.MonadError
-import cats.syntax.all._
-
 trait InfixImpl[F[_]] {
   self: Interpreter[F] =>
 

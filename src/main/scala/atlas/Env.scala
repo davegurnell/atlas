@@ -1,7 +1,5 @@
 package atlas
 
-import cats.MonadError
-
 final case class Env[F[_]](chain: ScopeChain[String, Value[F]]) {
   def get(id: String): Option[Value[F]] =
     chain.get(id)
@@ -20,4 +18,9 @@ final case class Env[F[_]](chain: ScopeChain[String, Value[F]]) {
 
   def pop: Env[F] =
     Env(chain.pop)
+}
+
+object Env {
+  def create[F[_]]: Env[F] =
+    Env(ScopeChain.create)
 }

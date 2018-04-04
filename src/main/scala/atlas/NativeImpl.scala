@@ -34,12 +34,9 @@ trait NativeImpl[F[_]] {
         list.flatten
     }
 
-  def createEnv: Env[F] =
-    Env(ScopeChain.create)
-
   def basicEnv: Env[F] =
-    createEnv
-      .set("map", map)
+    Env.create[F]
+      .set("map",     map)
       .set("flatMap", flatMap)
       .set("filter",  filter)
       .set("flatten", flatten)

@@ -1,32 +1,32 @@
 package atlas
 
 import atlas.syntax._
-import cats.Eval
-import cats.MonadError
+import cats.{Eval, MonadError}
 import cats.data.EitherT
 import cats.implicits._
 import minitest._
-import scala.concurrent.{Future, Await, ExecutionContext}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
-object SyncInterpreterSuite extends SimpleInterpreterSuite(SyncInterpreter) {
+object SyncInterpreterSuite extends SimpleInterpreterSuite(Interpreter.sync) {
   def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
     either.value.value
 }
 
-object AsyncInterpreterSuite extends SimpleInterpreterSuite(new AsyncInterpreter) {
+object AsyncInterpreterSuite extends SimpleInterpreterSuite(Interpreter.async) {
   def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
     Await.result(eitherT.value, 1.second)
 }
 
 abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends SimpleTestSuite {
-  import interpreter.{createEnv, basicEnv, native}
+  import interpreter.native
 
   test("constant") {
     assertSuccess(
       expr"true",
-      createEnv,
+      Env.create[F],
       true
     )
   }
@@ -34,7 +34,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
   test("infix") {
     assertSuccess(
       expr"1 + 2 + 3",
-      createEnv,
+      Env.create[F],
       6
     )
   }
@@ -42,7 +42,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
   test("variable reference") {
     assertSuccess(
       expr"foo",
-      createEnv.set("foo", true),
+      Env.create[F].set("foo", true),
       true
     )
   }
@@ -50,7 +50,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
   test("variable not in env") {
     assertFailure(
       expr"foo",
-      createEnv,
+      Env.create[F],
       RuntimeError("Not in scope: foo")
     )
   }
@@ -60,7 +60,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
       add(mul(a, b), mul(4, 5))
       """
 
-    val env = createEnv
+    val env = Env.create[F]
      .set("add", native((a: Int, b: Int) => a + b))
      .set("mul", native((a: Int, b: Int) => a * b))
      .set("a", 2)
@@ -83,7 +83,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
       end
       """
 
-    val env = createEnv
+    val env = Env.create[F]
 
     val expected = 123
 
@@ -101,7 +101,7 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
       }
       """
 
-    val env = createEnv
+    val env = Env.create[F]
 
     val expected = ObjVal(List(
       "foo" -> 2.toAtlas[F],
@@ -113,10 +113,10 @@ abstract class SimpleInterpreterSuite[F[_]](interpreter: Interpreter[F])(implici
   }
 
   def assertSuccess[A](expr: Expr, env: Env[F], expected: A)(implicit enc: ValueEncoder[F, A]): Unit =
-    assertEquals(toEither(interpreter(expr, env)), Right(enc(expected)))
+    assertEquals(toEither(interpreter.eval(expr, env)), Right(enc(expected)))
 
   def assertFailure(expr: Expr, env: Env[F], expected: RuntimeError): Unit =
-    assertEquals(toEither(interpreter(expr, env)), Left(expected))
+    assertEquals(toEither(interpreter.eval(expr, env)), Left(expected))
 
   def toEither[A](value: F[A]): Either[RuntimeError, A]
 }

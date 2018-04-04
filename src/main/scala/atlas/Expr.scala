@@ -1,7 +1,5 @@
 package atlas
 
-import cats.implicits._
-
 sealed abstract class Stmt extends Product with Serializable
 final case class LetStmt(varName: String, expr: Expr) extends Stmt
 final case class ExprStmt(expr: Expr) extends Stmt
