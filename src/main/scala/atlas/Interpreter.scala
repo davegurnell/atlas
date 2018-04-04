@@ -1,14 +1,14 @@
 package atlas
 
 import atlas.SyncInterpreter.Step
-import cats.MonadError
+import cats.{Eval, MonadError}
 import cats.data.{EitherT, State, StateT}
 import cats.implicits._
 import scala.util.control.NonFatal
 import scala.concurrent.{Future, ExecutionContext}
 
-object SyncInterpreter extends Interpreter[Either[RuntimeError, ?]] {
-  type F[A] = Either[RuntimeError, A]
+object SyncInterpreter extends Interpreter[EitherT[Eval, RuntimeError, ?]] {
+  type F[A] = EitherT[Eval, RuntimeError, A]
 }
 
 class AsyncInterpreter(implicit ec: ExecutionContext) extends Interpreter[EitherT[Future, RuntimeError, ?]] {
@@ -22,7 +22,7 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
   with NativeImpl[F] {
 
   /** Wrap F[_] in a state monad to track IState */
-  type Step[A] = StateT[F, Env[F], A]
+  type Step[A] = EvalStep[F, A]
 
   /**
    * Helpers for creating Native functions:
@@ -167,13 +167,7 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
     }
 
   def applyNative(native: Native[F], args: List[Value[F]]): Step[Value[F]] =
-    pureF(native(args))
-
-  def applyClosureF(closure: Closure[F], args: List[Value[F]]): F[Value[F]] =
-    applyClosure(closure, args).runA(closure.env)
-
-  def applyNativeF(native: Native[F], args: List[Value[F]]): F[Value[F]] =
-    applyNative(native, args).runA(createEnv)
+    native(args)
 
   val currentEnv: Step[Env[F]] =
     inspectEnv(identity)
@@ -214,12 +208,14 @@ abstract class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError]
   def modifyEnvF(func: Env[F] => F[Env[F]]): Step[Unit] =
     StateT.modifyF(func)
 
-  def catchNonFatalF[A](body: => A): F[A] =
-    try {
-      body.pure[F]
-    } catch {
-      case NonFatal(exn) =>
-        RuntimeError("Error executing native code", Some(exn)).raiseError[F, A]
+  def catchNonFatal[A](body: => A): Step[A] =
+    StateT.liftF {
+      try {
+        body.pure[F]
+      } catch {
+        case NonFatal(exn) =>
+          RuntimeError("Error executing native code", Some(exn)).raiseError[F, A]
+      }
     }
 
   def monitoringChecks[A](body: => Step[A]): Step[A] =

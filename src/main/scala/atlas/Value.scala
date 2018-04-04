@@ -20,8 +20,8 @@ final case class Closure[F[_]](func: FuncExpr, env: Env[F]) extends FuncVal[F] {
   override def toString: String = s"Closure($func, ${env.chain.scopes.length})"
 }
 
-final case class Native[F[_]](func: List[Value[F]] => F[Value[F]]) extends FuncVal[F] {
-  def apply(args: List[Value[F]]): F[Value[F]] =
+final case class Native[F[_]](func: List[Value[F]] => EvalStep[F, Value[F]]) extends FuncVal[F] {
+  def apply(args: List[Value[F]]): EvalStep[F, Value[F]] =
     func(args)
 
   def orElse(that: Native[F])(implicit monad: MonadError[F, RuntimeError]): Native[F] =

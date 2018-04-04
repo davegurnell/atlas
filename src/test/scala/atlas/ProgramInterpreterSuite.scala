@@ -113,8 +113,8 @@ object ProgramInterpreterSuite extends SimpleTestSuite {
   }
 
   def assertSuccess[A](prog: Expr, env: Env[F], expected: A)(implicit dec: ValueDecoder[F, A]): Unit =
-    assertEquals(SyncInterpreter(prog, env).flatMap(dec.apply), Right(expected))
+    assertEquals(SyncInterpreter(prog, env).flatMap(dec.apply).value.value, Right(expected))
 
   def assertFailure(prog: Expr, env: Env[F], expected: RuntimeError): Unit =
-    assertEquals(SyncInterpreter(prog, env), Left(expected))
+    assertEquals(SyncInterpreter(prog, env).value.value, Left(expected))
 }

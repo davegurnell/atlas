@@ -1,6 +1,7 @@
 package atlas
 
 import atlas.syntax._
+import cats.Eval
 import cats.MonadError
 import cats.data.EitherT
 import cats.implicits._
@@ -10,8 +11,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 object SyncInterpreterSuite extends SimpleInterpreterSuite(SyncInterpreter) {
-  def toEither[A](either: Either[RuntimeError, A]): Either[RuntimeError, A] =
-    either
+  def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
+    either.value.value
 }
 
 object AsyncInterpreterSuite extends SimpleInterpreterSuite(new AsyncInterpreter) {
