@@ -27,6 +27,12 @@ trait ValueDecoderInstances {
   implicit def value[F[_]](implicit app: Applicative[F]): ValueDecoder[F, Value[F]] =
     pure(_.pure[F])
 
+  implicit def unit[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Unit] =
+    pure {
+      case NullVal() => ().pure[F]
+      case value     => RuntimeError(s"Could not decode unit: $value").raiseError[F, Unit]
+    }
+
   implicit def boolean[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Boolean] =
     pure {
       case BoolVal(value) => value.pure[F]

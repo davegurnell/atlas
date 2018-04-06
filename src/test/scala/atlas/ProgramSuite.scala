@@ -20,7 +20,7 @@ object AsyncProgramSuite extends ProgramSuite(Interpreter.async) {
     Await.result(eitherT.value, 1.second)
 }
 
-abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends SimpleTestSuite {
+abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
   import interpreter.native
 
   test("recursive odd/even") {
@@ -30,10 +30,9 @@ abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: M
 
       even(10)
       """
-    val env = Env.create[F]
     val expected = true
 
-    assertSuccess(code, env, expected)
+    assertSuccess(code, expected)
   }
 
   test("factorial") {
@@ -45,10 +44,10 @@ abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: M
 
       factorial(10)
       """
-    val env = Env.create[F]
+
     val expected = (1 to 10).foldLeft(1)(_ * _)
 
-    assertSuccess(prog, env, expected)
+    assertSuccess(prog, expected)
   }
 
   test("fib") {
@@ -60,10 +59,10 @@ abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: M
 
       fib(10)
       """
-    val env = Env.create[F]
+
     val expected = 55
 
-    assertSuccess(prog, env, expected)
+    assertSuccess(prog, expected)
   }
 
   test("map, filter, flatten") {
@@ -79,10 +78,12 @@ abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: M
 
       filter(inBounds, flatten(map(double, values)))
       """
+
     val env = interpreter.basicEnv
+
     val expected = List(2, 5, 10, 7, 14)
 
-    assertSuccess(prog, env, expected)
+    assertSuccess(prog, expected, env)
   }
 
   test("comments") {
@@ -102,36 +103,38 @@ abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: M
       )# Comment
       # Comment
       """
-    val env = Env.create[F]
+
     val expected = 42
 
-    assertSuccess(prog, env, expected)
+    assertSuccess(prog, expected)
   }
 
   test("native functions") {
     val prog = prog"""average(10, 5)"""
+
     val env = Env.create[F]
-      .set("average", native((a: Double, b: Double) => (a + b) / 2))
+      .set("average", native { (a: Double, b: Double) =>
+        (a + b) / 2
+      })
+
     val expected = 7.5
 
-    assertSuccess(prog, env, expected)
+    assertSuccess(prog, expected, env)
   }
 
   test("native functions with exceptions") {
     val prog = prog"""average(10, 5)"""
+
     val exn = new Exception("Badness")
+
     val env = Env.create[F]
-      .set("average", native((a: Double, b: Double) => { if(a > b) throw exn ; 0 }))
+      .set("average", native { (a: Double, b: Double) =>
+        if(a > b) throw exn
+        0
+      })
+
     val expected = RuntimeError("Error executing native code", Some(exn))
 
-    assertFailure(prog, env, expected)
+    assertFailure(prog, expected, env)
   }
-
-  def assertSuccess[A](prog: Expr, env: Env[F], expected: A)(implicit dec: ValueDecoder[F, A]): Unit =
-    assertEquals(toEither(interpreter.evalAs[A](prog, env)), Right(expected))
-
-  def assertFailure(prog: Expr, env: Env[F], expected: RuntimeError): Unit =
-    assertEquals(toEither(interpreter.eval(prog, env)), Left(expected))
-
-  def toEither[A](value: F[A]): Either[RuntimeError, A]
 }

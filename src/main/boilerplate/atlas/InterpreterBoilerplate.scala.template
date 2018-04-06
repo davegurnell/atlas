@@ -52,7 +52,25 @@ trait InterpreterBoilerplate[F[_]] {
   }
 
   trait NativeEncoders {
-    [#implicit def function1[[#T1#], R](
+    implicit def function0Encoder[R](
+      implicit
+      lazyResEnc: Lazy[ValueEncoder[F, R]]
+    ): ValueEncoder[F, () => EvalStep[F, R]] = {
+      val resEnc = lazyResEnc.value
+      ValueEncoder.pure { func =>
+        Native {
+          case Nil =>
+            for {
+              res <- func()
+            } yield resEnc(res)
+
+          case args =>
+            RuntimeError("Error running native function", None).raiseError[Step, Value[F]]
+        }
+      }
+    }
+
+    [#implicit def function1Encoder[[#T1#], R](
       implicit
       [#lazyArgDec1: Lazy[ValueDecoder[F, T1]]#,
       ],
@@ -80,7 +98,34 @@ trait InterpreterBoilerplate[F[_]] {
   }
 
   trait NativeDecoders {
-    [#implicit def function1F[[#A1#], R](
+    implicit def function0Decoder[R](
+      implicit
+      lazyDec: Lazy[ValueDecoder[F, R]]
+    ): ValueDecoder[F, () => EvalStep[F, R]] = {
+      val dec = lazyDec.value
+      ValueDecoder.pure {
+        case closure: Closure[F] =>
+          monad.pure { () =>
+            for {
+              res <- applyClosure(closure, Nil)
+              ans <- StateT.liftF(dec(res))
+            } yield ans
+          }
+
+        case native: Native[F] =>
+          monad.pure { () =>
+            for {
+              res <- applyNative(native, Nil)
+              ans <- StateT.liftF(dec(res))
+            } yield ans
+          }
+
+        case value =>
+          RuntimeError(s"Could not decode value as function: $value").raiseError
+      }
+    }
+
+    [#implicit def function1Decoder[[#A1#], R](
       implicit
       [#lazyEnc1: Lazy[ValueEncoder[F, A1]]#],
       lazyDec: Lazy[ValueDecoder[F, R]]

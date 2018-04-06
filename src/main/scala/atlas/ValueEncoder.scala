@@ -24,6 +24,9 @@ trait ValueEncoderInstances {
   implicit def value[F[_], A <: Value[F]]: ValueEncoder[F, A] =
     pure(value => value)
 
+  implicit def unit[F[_]]: ValueEncoder[F, Unit] =
+    pure(value => NullVal())
+
   implicit def boolean[F[_]]: ValueEncoder[F, Boolean] =
     pure(value => BoolVal(value))
 

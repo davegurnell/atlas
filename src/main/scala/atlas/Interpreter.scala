@@ -40,11 +40,11 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
    */
   object implicits extends NativeEncoders with NativeDecoders
 
-  def evalAs[A](expr: Expr, env: Env[F] = Env.create)(implicit dec: ValueDecoder[F, A]): F[A] =
-    eval(expr, env).flatMap(dec.apply)
+  def evalAs[A](expr: Expr, env: Env[F] = Env.create, limits: Limits = Limits.create)(implicit dec: ValueDecoder[F, A]): F[A] =
+    eval(expr, env, limits).flatMap(dec.apply)
 
-  def eval(expr: Expr, env: Env[F] = Env.create): F[Value[F]] =
-    evalExpr(expr).runA(env)
+  def eval(expr: Expr, env: Env[F] = Env.create, limits: Limits = Limits.create): F[Value[F]] =
+    evalExpr(expr).runA((env, limits))
 
   def evalExpr(expr: Expr): Step[Value[F]] =
     monitoringChecks {
@@ -69,10 +69,7 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     }
 
   def evalRef(ref: RefExpr): Step[Value[F]] =
-    for {
-      env   <- currentEnv
-      value <- env.get(ref.id).fold(fail[Value[F]](s"Not in scope: ${ref.id}"))(pure)
-    } yield value
+    getVariable(ref.id)
 
   def evalApp(apply: AppExpr): Step[Value[F]] =
     for {
@@ -102,7 +99,7 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     } yield ans
 
   def evalFunc(func: FuncExpr): Step[Value[F]] =
-    inspectEnv(env => Closure(func, env) : Value[F])
+    createClosure(func)
 
   def evalBlock(block: BlockExpr): Step[Value[F]] =
     pushScope {
@@ -126,7 +123,7 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
   def evalLetStmt(stmt: LetStmt): Step[Unit] =
     for {
       value <- evalExpr(stmt.expr)
-      _     <- inspectEnv(_.chain.destructiveSet(stmt.varName, value))
+      _     <- setVariable(stmt.varName, value)
     } yield NullVal()
 
   def evalExprStmt(stmt: ExprStmt): Step[Unit] =
@@ -167,11 +164,10 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     arr.exprs.traverse(evalExpr).map(ArrVal[F])
 
   def applyClosure(closure: Closure[F], args: List[Value[F]]): Step[Value[F]] =
-    replaceEnv(closure.env) {
+    swapEnv(closure.env) {
       pushScope {
         for {
-          env <- currentEnv
-          _    = env.destructiveSetAll(closure.func.args.map(_.argName).zip(args))
+          env <- setVariables(closure.func.args.map(_.argName).zip(args))
           ans <- evalExpr(closure.func.body)
         } yield ans
       }
@@ -180,44 +176,86 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
   def applyNative(native: Native[F], args: List[Value[F]]): Step[Value[F]] =
     native(args)
 
+  // Environment helpers ------------------------
+
+  def getVariable(name: String): Step[Value[F]] =
+    inspectEnv(env => env.get(name) match {
+      case Some(value) => value.pure[F]
+      case None        => RuntimeError(s"Not in scope: $name").raiseError[F, Value[F]]
+    })
+
+  def setVariable(name: String, value: Value[F]): Step[Unit] =
+    inspectEnv(env => env.chain.destructiveSet(name, value).pure[F])
+
+  def setVariables(bindings: Seq[(String, Value[F])]): Step[Unit] =
+    inspectEnv(env => env.chain.destructiveSetAll(bindings).pure[F])
+
+  def createClosure(func: FuncExpr): Step[Value[F]] =
+    inspectEnv(env => (Closure(func, env) : Value[F]).pure[F])
+
   val currentEnv: Step[Env[F]] =
-    inspectEnv(identity)
+    inspectEnv(env => env.pure[F])
+
+  def swapEnv[A](env: Env[F])(body: Step[A]): Step[A] =
+    for {
+      env0 <- currentEnv
+      _    <- updateEnv(_ => env.pure[F])
+      ans  <- body
+      _    <- updateEnv(_ => env0.pure[F])
+    } yield ans
 
   def pushScope[A](body: Step[A]): Step[A] =
     for {
-      _   <- modifyEnv(_.push)
+      _   <- updateEnv(_.push.pure[F])
       ans <- body
-      _   <- modifyEnv(_.pop)
+      _   <- updateEnv(_.pop.pure[F])
     } yield ans
 
-  def replaceEnv[A](env: Env[F])(body: Step[A]): Step[A] =
-    for {
-      env0 <- currentEnv
-      _    <- modifyEnv(_ => env)
-      ans  <- body
-      _    <- modifyEnv(_ => env0)
-    } yield ans
+  def inspectEnv[A](func: Env[F] => F[A]): Step[A] =
+    StateT.inspectF { case (env, limits) => func(env) }
+
+  def updateEnv(func: Env[F] => F[Env[F]]): Step[Unit] =
+    StateT.modifyF { case (env, limits) => func(env).map(env => (env, limits)) }
+
+  // Monitoring helpers -------------------------
+
+  def monitoringChecks[A](body: => Step[A]): Step[A] =
+    checkLimits.flatMap(_ => body)
+
+  def checkLimits: Step[Unit] =
+    StateT.modifyF {
+      case (env, limits) =>
+        def pcFailure: Option[F[(Env[F], Limits)]] =
+          limits.pcLimit.collect {
+            case limit if limit < limits.pc =>
+              RuntimeError(s"Script exceeded program counter limit: $limit").raiseError[F, (Env[F], Limits)]
+          }
+
+        def runtimeFailure: Option[F[(Env[F], Limits)]] =
+          limits.runtimeLimit.collect {
+            case limit if limit < (System.currentTimeMillis - limits.startTime) =>
+              RuntimeError(s"Script exceeded runtime limit: ${limit}ms").raiseError[F, (Env[F], Limits)]
+          }
+
+        def success: F[(Env[F], Limits)] =
+          (env, limits.copy(pc = limits.pc + 1)).pure[F]
+
+        pcFailure orElse runtimeFailure getOrElse success
+    }
+
+  def inspectLimits[A](func: Limits => F[A]): Step[A] =
+    StateT.inspectF { case (env, limits) => func(limits) }
+
+  def updateLimits(func: Limits => F[Limits]): Step[Unit] =
+    StateT.modifyF { case (env, limits) => func(limits).map(limits => (env, limits)) }
+
+  // Error handling helpers ---------------------
 
   def pure[A](value: A): Step[A] =
-    pureF(value.pure[F])
-
-  def pureF[A](fa: F[A]): Step[A] =
-    StateT.apply((env: Env[F]) => fa.map(a => (env, a)))
+    StateT(env => (env, value).pure[F])
 
   def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
     RuntimeError(msg, cause).raiseError[Step, A]
-
-  def inspectEnv[A](func: Env[F] => A): Step[A] =
-    inspectEnvF(env => func(env).pure[F])
-
-  def inspectEnvF[A](func: Env[F] => F[A]): Step[A] =
-    StateT.inspectF(func)
-
-  def modifyEnv(func: Env[F] => Env[F]): Step[Unit] =
-    modifyEnvF(env => func(env).pure[F])
-
-  def modifyEnvF(func: Env[F] => F[Env[F]]): Step[Unit] =
-    StateT.modifyF(func)
 
   def catchNonFatal[A](body: => A): Step[A] =
     StateT.liftF {
@@ -228,7 +266,4 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
           RuntimeError("Error executing native code", Some(exn)).raiseError[F, A]
       }
     }
-
-  def monitoringChecks[A](body: => Step[A]): Step[A] =
-    body
 }
