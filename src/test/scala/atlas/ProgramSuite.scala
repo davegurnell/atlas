@@ -123,7 +123,9 @@ abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: M
   }
 
   test("native functions with exceptions") {
-    val prog = prog"""average(10, 5)"""
+    val prog = prog"""
+      average(10, 5)
+      """
 
     val exn = new Exception("Badness")
 
