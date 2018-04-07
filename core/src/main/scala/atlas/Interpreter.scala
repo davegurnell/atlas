@@ -49,22 +49,23 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
   def evalExpr(expr: Expr): Step[Value[F]] =
     monitoringChecks {
       expr match {
-        case expr: RefExpr    => evalRef(expr)
-        case expr: AppExpr    => evalApp(expr)
-        case expr: InfixExpr  => evalInfix(expr)
-        case expr: PrefixExpr => evalPrefix(expr)
-        case expr: FuncExpr   => evalFunc(expr)
-        case expr: BlockExpr  => evalBlock(expr)
-        case expr: SelectExpr => evalSelect(expr)
-        case expr: CondExpr   => evalCond(expr)
-        case ParenExpr(expr)  => evalExpr(expr)
-        case expr: ObjExpr    => evalObj(expr)
-        case expr: ArrExpr    => evalArr(expr)
-        case StrExpr(value)   => pure(StrVal(value))
-        case IntExpr(value)   => pure(IntVal(value))
-        case DblExpr(value)   => pure(DblVal(value))
-        case BoolExpr(value)  => pure(BoolVal(value))
-        case NullExpr         => pure(NullVal())
+        case expr: RefExpr     => evalRef(expr)
+        case expr: AppExpr     => evalApp(expr)
+        case expr: InfixExpr   => evalInfix(expr)
+        case expr: PrefixExpr  => evalPrefix(expr)
+        case expr: FuncExpr    => evalFunc(expr)
+        case expr: BlockExpr   => evalBlock(expr)
+        case expr: SelectExpr  => evalSelect(expr)
+        case expr: CondExpr    => evalCond(expr)
+        case CastExpr(expr, _) => evalExpr(expr)
+        case ParenExpr(expr)   => evalExpr(expr)
+        case expr: ObjExpr     => evalObj(expr)
+        case expr: ArrExpr     => evalArr(expr)
+        case StrExpr(value)    => pure(StrVal(value))
+        case IntExpr(value)    => pure(IntVal(value))
+        case DblExpr(value)    => pure(DblVal(value))
+        case BoolExpr(value)   => pure(BoolVal(value))
+        case NullExpr          => pure(NullVal())
       }
     }
 
@@ -75,10 +76,10 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     for {
       func <- evalExpr(apply.func)
       args <- apply.args.traverse(evalExpr)
-      ans  <- evalAppInternal(func, args)
+      ans  <- evalApp(func, args)
     } yield ans
 
-  def evalAppInternal(func: Value[F], args: List[Value[F]]): Step[Value[F]] =
+  def evalApp(func: Value[F], args: List[Value[F]]): Step[Value[F]] =
     func match {
       case closure : Closure[F] => applyClosure(closure, args)
       case native  : Native[F]  => applyNative(native, args)
@@ -185,10 +186,10 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     })
 
   def setVariable(name: String, value: Value[F]): Step[Unit] =
-    inspectEnv(env => env.chain.destructiveSet(name, value).pure[F])
+    inspectEnv(env => env.destructiveSet(name, value).pure[F])
 
   def setVariables(bindings: Seq[(String, Value[F])]): Step[Unit] =
-    inspectEnv(env => env.chain.destructiveSetAll(bindings).pure[F])
+    inspectEnv(env => env.destructiveSetAll(bindings).pure[F])
 
   def createClosure(func: FuncExpr): Step[Value[F]] =
     inspectEnv(env => (Closure(func, env) : Value[F]).pure[F])

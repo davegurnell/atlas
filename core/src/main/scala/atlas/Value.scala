@@ -17,7 +17,7 @@ final case class NullVal[F[_]]() extends Value[F]
 sealed abstract class FuncVal[F[_]] extends Value[F]
 
 final case class Closure[F[_]](func: FuncExpr, env: Env[F]) extends FuncVal[F] {
-  override def toString: String = s"Closure($func, ${env.chain.scopes.length})"
+  override def toString: String = s"Closure($func, ${env.scopes.length})"
 }
 
 final case class Native[F[_]](func: List[Value[F]] => EvalStep[F, Value[F]]) extends FuncVal[F] {

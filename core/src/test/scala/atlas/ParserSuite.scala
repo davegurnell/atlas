@@ -124,6 +124,51 @@ object TokenParserSuite extends SimpleTestSuite with AllParsers with ParserSuite
   }
 }
 
+object TypeParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
+  import PrefixOp._
+  import InfixOp._
+
+  object assert extends Assertions(tpe)
+
+  test("literal") {
+    assert.complete("Int", IntType)
+    assert.complete("Real", DblType)
+    assert.complete("String", StrType)
+    assert.complete("Boolean", BoolType)
+    assert.complete("Null", NullType)
+  }
+
+  test("ref") {
+    assert.complete("A", TypeRef("A"))
+  }
+
+  test("func") {
+    assert.complete(
+      "Int -> String",
+      FuncType(List(IntType), StrType))
+
+    assert.complete(
+      "(Int, String) -> Boolean",
+      FuncType(List(IntType, StrType), BoolType))
+
+    assert.complete(
+      "Int -> String -> Boolean",
+      FuncType(
+        List(IntType),
+        FuncType(
+          List(StrType),
+          BoolType)))
+
+    assert.complete(
+      "(Int, Real -> Int) -> (String, Real -> String) -> Boolean",
+      FuncType(
+        List(IntType, FuncType(List(DblType), IntType)),
+        FuncType(
+          List(StrType, FuncType(List(DblType), StrType)),
+          BoolType)))
+  }
+}
+
 object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
   import PrefixOp._
   import InfixOp._
@@ -419,23 +464,41 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
     assert.complete(
       "( a, b ) -> a + b",
       FuncExpr(
-        List(FuncArg("a"), FuncArg("b")),
+        List(FuncArg("a", None), FuncArg("b", None)),
+        None,
+        InfixExpr(Add, RefExpr("a"), RefExpr("b"))))
+    assert.complete(
+      "( a , b : String ) : Int -> a + b",
+      FuncExpr(
+        List(FuncArg("a", None), FuncArg("b", Some(StrType))),
+        Some(IntType),
+        InfixExpr(Add, RefExpr("a"), RefExpr("b"))))
+
+    assert.complete(
+      "(a:Int,b):Real->a+b",
+      FuncExpr(
+        List(FuncArg("a", Some(IntType)), FuncArg("b", None)),
+        Some(DblType),
         InfixExpr(Add, RefExpr("a"), RefExpr("b"))))
 
     assert.complete(
       "a -> b -> a + b",
       FuncExpr(
-        List(FuncArg("a")),
+        List(FuncArg("a", None)),
+        None,
         FuncExpr(
-          List(FuncArg("b")),
+          List(FuncArg("b", None)),
+          None,
           InfixExpr(Add, RefExpr("a"), RefExpr("b")))))
 
     assert.complete(
       "a -> b -> a.c + b.d",
       FuncExpr(
-        List(FuncArg("a")),
+        List(FuncArg("a", None)),
+        None,
         FuncExpr(
-          List(FuncArg("b")),
+          List(FuncArg("b", None)),
+          None,
           InfixExpr(Add,
             SelectExpr(RefExpr("a"), "c"),
             SelectExpr(RefExpr("b"), "d")))))
@@ -445,14 +508,21 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
 object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
   object assert extends Assertions(stmt)
 
-  test("defn") {
-    assert.complete("let a = b", LetStmt("a", RefExpr("b")))
+  test("let") {
+    assert.complete("let a = b", LetStmt("a", None, RefExpr("b")))
 
     assert.complete("let a = b -> c", LetStmt(
       "a",
+      None,
       FuncExpr(
-        List(FuncArg("b")),
+        List(FuncArg("b", None)),
+        None,
         RefExpr("c"))))
+
+    assert.complete("let a: Int = b", LetStmt(
+      "a",
+      Some(IntType),
+      RefExpr("b")))
 
     assert.complete(
       i"""
@@ -460,8 +530,10 @@ object StmtParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
       """,
       LetStmt(
         "add",
+        None,
         FuncExpr(
-          List(FuncArg("a"), FuncArg("b")),
+          List(FuncArg("a", None), FuncArg("b", None)),
+          None,
           InfixExpr(InfixOp.Add, RefExpr("a"), RefExpr("b")))))
   }
 

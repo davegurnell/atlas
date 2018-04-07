@@ -69,32 +69,27 @@ class Macros(val c: blackbox.Context) {
 
   val pkg = q"_root_.atlas"
 
-  implicit def listLiftable[A](implicit itemLiftable: Liftable[A]): Liftable[List[A]] =
-    new Liftable[List[A]] {
-      def apply(list: List[A]): Tree =
-        q"_root_.scala.List(..${list.map(itemLiftable.apply)})"
-    }
-
   implicit lazy val exprLiftable: Liftable[Expr] =
     new Liftable[Expr] {
       def apply(expr: Expr): Tree =
         expr match {
-          case RefExpr(id)                => q"$pkg.RefExpr($id)"
-          case AppExpr(func, args)        => q"$pkg.AppExpr($func, $args)"
-          case InfixExpr(op, arg1, arg2)  => q"$pkg.InfixExpr($op, $arg1, $arg2)"
-          case PrefixExpr(op, arg)        => q"$pkg.PrefixExpr($op, $arg)"
-          case FuncExpr(args, body)       => q"$pkg.FuncExpr($args, $body)"
-          case BlockExpr(stmts, expr)     => q"$pkg.BlockExpr($stmts, $expr)"
-          case SelectExpr(expr, ref)      => q"$pkg.SelectExpr($expr, $ref)"
-          case CondExpr(test, arm1, arm2) => q"$pkg.CondExpr($test, $arm1, $arm2)"
-          case ParenExpr(expr)            => q"$pkg.ParenExpr($expr)"
-          case ObjExpr(fields)            => q"$pkg.ObjExpr($fields)"
-          case ArrExpr(items)             => q"$pkg.ArrExpr($items)"
-          case StrExpr(value)             => q"$pkg.StrExpr($value)"
-          case IntExpr(value)             => q"$pkg.IntExpr($value)"
-          case DblExpr(value)             => q"$pkg.DblExpr($value)"
-          case BoolExpr(value)            => q"$pkg.BoolExpr($value)"
-          case NullExpr                   => q"$pkg.NullExpr"
+          case RefExpr(id)                 => q"$pkg.RefExpr($id)"
+          case AppExpr(func, args)         => q"$pkg.AppExpr($func, $args)"
+          case InfixExpr(op, arg1, arg2)   => q"$pkg.InfixExpr($op, $arg1, $arg2)"
+          case PrefixExpr(op, arg)         => q"$pkg.PrefixExpr($op, $arg)"
+          case FuncExpr(args, rType, body) => q"$pkg.FuncExpr($args, $rType, $body)"
+          case BlockExpr(stmts, expr)      => q"$pkg.BlockExpr($stmts, $expr)"
+          case SelectExpr(expr, ref)       => q"$pkg.SelectExpr($expr, $ref)"
+          case CondExpr(test, arm1, arm2)  => q"$pkg.CondExpr($test, $arm1, $arm2)"
+          case CastExpr(expr, tpe)         => q"$pkg.CastExpr($expr, $tpe)"
+          case ParenExpr(expr)             => q"$pkg.ParenExpr($expr)"
+          case ObjExpr(fields)             => q"$pkg.ObjExpr($fields)"
+          case ArrExpr(items)              => q"$pkg.ArrExpr($items)"
+          case StrExpr(value)              => q"$pkg.StrExpr($value)"
+          case IntExpr(value)              => q"$pkg.IntExpr($value)"
+          case DblExpr(value)              => q"$pkg.DblExpr($value)"
+          case BoolExpr(value)             => q"$pkg.BoolExpr($value)"
+          case NullExpr                    => q"$pkg.NullExpr"
         }
     }
 
@@ -102,15 +97,17 @@ class Macros(val c: blackbox.Context) {
     new Liftable[Stmt] {
       def apply(stmt: Stmt): Tree =
         stmt match {
-          case LetStmt(name, expr) => q"$pkg.LetStmt($name, $expr)"
-          case ExprStmt(expr)      => q"$pkg.ExprStmt($expr)"
+          case LetStmt(name, tpe, expr) => q"$pkg.LetStmt($name, $tpe, $expr)"
+          case ExprStmt(expr)           => q"$pkg.ExprStmt($expr)"
         }
     }
 
   implicit lazy val argLiftable: Liftable[FuncArg] =
     new Liftable[FuncArg] {
       def apply(arg: FuncArg): Tree =
-        q"$pkg.FuncArg(${arg.argName})"
+        arg match {
+          case FuncArg(name, tpe) => q"$pkg.FuncArg($name, $tpe)"
+        }
     }
 
   implicit lazy val prefixOpLiftable: Liftable[PrefixOp] =
@@ -142,9 +139,39 @@ class Macros(val c: blackbox.Context) {
         }
     }
 
-  implicit lazy val fieldPairLiftable: Liftable[(String, Expr)] =
-    new Liftable[(String, Expr)] {
-      def apply(field: (String, Expr)): Tree = {
+  implicit lazy val typeLiftable: Liftable[Type] =
+    new Liftable[Type] {
+      def apply(tpe: Type): Tree =
+        tpe match {
+          case TypeVar(id)             => q"$pkg.TypeVar($id)"
+          case TypeRef(name)           => q"$pkg.TypeRef($name)"
+          case FuncType(aTypes, rType) => q"$pkg.FuncType($aTypes, $rType)"
+          case UnionType(types)        => q"$pkg.UnionType($types)"
+          case ObjType(fTypes)         => q"$pkg.ObjType($fTypes)"
+          case ArrType(iType)          => q"$pkg.ArrType($iType)"
+          case StrType                 => q"$pkg.StrType"
+          case IntType                 => q"$pkg.IntType"
+          case DblType                 => q"$pkg.DblType"
+          case BoolType                => q"$pkg.BoolType"
+          case NullType                => q"$pkg.NullType"
+        }
+    }
+
+  implicit def listLiftable[A: Liftable]: Liftable[List[A]] =
+    new Liftable[List[A]] {
+      def apply(list: List[A]): Tree =
+        q"_root_.scala.List(..$list)"
+    }
+
+  implicit def setLiftable[A: Liftable]: Liftable[Set[A]] =
+    new Liftable[Set[A]] {
+      def apply(list: Set[A]): Tree =
+        q"_root_.scala.Set(..$list)"
+    }
+
+  implicit def pairLiftable[A: Liftable]: Liftable[(String, A)] =
+    new Liftable[(String, A)] {
+      def apply(field: (String, A)): Tree = {
         val (name, expr) = field
         q"($name, $expr)"
       }

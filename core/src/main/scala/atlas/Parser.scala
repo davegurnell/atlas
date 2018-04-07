@@ -95,6 +95,24 @@ trait AllParsers {
   val ident: Parser[String] =
     P(!keyword ~ identStart ~ identCont.rep).!
 
+  val intTypeKw: Parser[Unit] =
+    P("Int" ~ !identCont)
+
+  val dblTypeKw: Parser[Unit] =
+    P("Real" ~ !identCont)
+
+  val strTypeKw: Parser[Unit] =
+    P("String" ~ !identCont)
+
+  val boolTypeKw: Parser[Unit] =
+    P("Boolean" ~ !identCont)
+
+  val nullTypeKw: Parser[Unit] =
+    P("Null" ~ !identCont)
+
+  val typeKw: Parser[Unit] =
+    P(intTypeKw | dblTypeKw | strTypeKw | boolTypeKw | nullTypeKw)
+
   // In increasing order of precedence:
   val infixOps: List[Parser[InfixOp]] = {
     import InfixOp._
@@ -168,14 +186,63 @@ trait AllParsers {
 
   // -----
 
+  val tpe: Parser[Type] =
+    P(funcType)
+
+  // -----
+
+  val parenFuncTypeHit: Parser[Type] =
+    P("(" ~ ws ~ tpe.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~ tpe)
+      .map { case (argTypes, resType) => FuncType(argTypes.toList, resType) }
+
+  val noParenFuncTypeHit: Parser[Type] =
+    P(atomicType ~ ws ~ "->" ~ ws ~ tpe)
+      .map { case (argType, resType) => FuncType(List(argType), resType) }
+
+  val funcType: Parser[Type] =
+    P(parenFuncTypeHit | noParenFuncTypeHit | parenType)
+
+  // -----
+
+  val parenTypeHit: Parser[Type] =
+    P("(" ~ ws ~ tpe ~ ws ~ ")")
+
+  val parenType: Parser[Type] =
+    P(parenTypeHit | atomicType)
+
+  // -----
+
+  val intType: Parser[Type] =
+    P(intTypeKw).map(_ => IntType)
+
+  val dblType: Parser[Type] =
+    P(dblTypeKw).map(_ => DblType)
+
+  val strType: Parser[Type] =
+    P(strTypeKw).map(_ => StrType)
+
+  val boolType: Parser[Type] =
+    P(boolTypeKw).map(_ => BoolType)
+
+  val nullType: Parser[Type] =
+    P(nullTypeKw).map(_ => NullType)
+
+  val typeRef: Parser[Type] =
+    P(!typeKw ~ ident).map(TypeRef)
+
+  val atomicType: Parser[Type] =
+    P(intType | dblType | strType | boolType | nullType | typeRef)
+
+  // -----
+
   val stmt: Parser[Stmt] =
     P(letStmt | exprStmt)
 
   // -----
 
   val letStmt: Parser[Stmt] =
-    P(letKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ expr)
-      .map { case (name, expr) => LetStmt(name, expr) }
+    P(letKw ~ ws ~/ ident ~ ws ~ (":" ~ ws ~ tpe ~ ws).? ~ "=" ~ ws ~/ expr)
+      .map { case (name, tpe, expr) => LetStmt(name, tpe, expr) }
 
   val exprStmt: Parser[Stmt] =
     P(expr).map(ExprStmt)
@@ -221,7 +288,13 @@ trait AllParsers {
     }
 
   val infix: Parser[Expr] =
-    P(infixOps.foldRight(prefix)(createInfix))
+    P(infixOps.foldRight(cast)(createInfix))
+
+  // -----
+
+  val cast: Parser[Expr] =
+    P(prefix ~ (ws ~ ":" ~ ws ~ tpe).rep)
+      .map { case (head, tail) => tail.foldLeft(head)(CastExpr) }
 
   // -----
 
@@ -249,16 +322,17 @@ trait AllParsers {
 
   // -----
 
-  val arg: Parser[FuncArg] =
-    P(ident).map(FuncArg)
+  val funcArg: Parser[FuncArg] =
+    P(ident ~ (ws ~ ":" ~ ws ~ tpe).?)
+      .map { case (name, tpe) => FuncArg(name, tpe) }
 
   val parenFuncHit: Parser[Expr] =
-    P("(" ~ ws ~ arg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (args, expr) => FuncExpr(args.toList, expr) }
+    P("(" ~ ws ~ funcArg.rep(sep = ws ~ "," ~ ws) ~ ws ~ ")" ~ ws ~ (":" ~ ws ~ parenType ~ ws).? ~ "->" ~ ws ~/ expr)
+      .map { case (args, rType, expr) => FuncExpr(args.toList, rType, expr) }
 
   val noParenFuncHit: Parser[Expr] =
     P(ident ~ ws ~ "->" ~ ws ~/ expr)
-      .map { case (name, expr) => FuncExpr(List(FuncArg(name)), expr) }
+      .map { case (name, expr) => FuncExpr(List(FuncArg(name, None)), None, expr) }
 
   val func: Parser[Expr] =
     P(parenFuncHit | noParenFuncHit | obj)
