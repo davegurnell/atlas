@@ -10,17 +10,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-object SyncProgramSuite extends ProgramSuite(Interpreter.sync) {
+object SyncInterpreterProgramSuite extends InterpreterProgramSuite(Interpreter.sync) {
   def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
     either.value.value
 }
 
-object AsyncProgramSuite extends ProgramSuite(Interpreter.async) {
+object AsyncInterpreterProgramSuite extends InterpreterProgramSuite(Interpreter.async) {
   def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
     Await.result(eitherT.value, 1.second)
 }
 
-abstract class ProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
+abstract class InterpreterProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
   import interpreter.native
 
   test("recursive odd/even") {

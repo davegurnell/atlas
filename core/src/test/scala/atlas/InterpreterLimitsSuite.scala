@@ -10,17 +10,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-object SyncMonitoringSuite extends MonitoringSuite(Interpreter.sync) {
+object SyncInterpreterLimitsSuite extends InterpreterLimitsSuite(Interpreter.sync) {
   def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
     either.value.value
 }
 
-object AsyncMonitoringSuite extends MonitoringSuite(Interpreter.async) {
+object AsyncInterpreterLimitsSuite extends InterpreterLimitsSuite(Interpreter.async) {
   def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
     Await.result(eitherT.value, 1.second)
 }
 
-abstract class MonitoringSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
+abstract class InterpreterLimitsSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
   import interpreter.implicits._
   import interpreter.native
 

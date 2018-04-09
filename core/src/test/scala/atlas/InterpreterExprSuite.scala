@@ -10,20 +10,20 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-object SyncExprSuite extends ExprSuite(Interpreter.sync) {
+object SyncInterpreterExprSuite extends InterpreterExprSuite(Interpreter.sync) {
   def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
     either.value.value
 }
 
-object AsyncExprSuite extends ExprSuite(Interpreter.async) {
+object AsyncInterpreterExprSuite extends InterpreterExprSuite(Interpreter.async) {
   def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
     Await.result(eitherT.value, 1.second)
 }
 
-abstract class ExprSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
+abstract class InterpreterExprSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
   import interpreter.native
 
-  test("constant") {
+  test("literal") {
     assertSuccess(
       expr"true",
       true

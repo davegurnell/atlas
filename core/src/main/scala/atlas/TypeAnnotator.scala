@@ -199,7 +199,7 @@ object TypeAnnotator {
       chain <- getChain
       tpe   <- chain.get(id) match {
                  case Some(tpe) => pure(tpe)
-                 case None      => fail(VariableNotFound(id))
+                 case None      => fail(TypeError.variableNotFound(id))
                }
     } yield tpe
 
