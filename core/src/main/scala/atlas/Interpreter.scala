@@ -117,8 +117,9 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
 
   def evalStmt(stmt: Stmt): Step[Unit] =
     stmt match {
-      case stmt: LetStmt  => evalLetStmt(stmt)
-      case stmt: ExprStmt => evalExprStmt(stmt)
+      case stmt: ExprStmt    => evalExprStmt(stmt)
+      case stmt: LetStmt     => evalLetStmt(stmt)
+      case stmt: LetTypeStmt => pure(())
     }
 
   def evalLetStmt(stmt: LetStmt): Step[Unit] =

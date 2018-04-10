@@ -7,8 +7,12 @@ final case class ParseError(message: String) extends Error
 sealed abstract class TypeError
 
 object TypeError {
+  final case class TypeNotFound(name: String) extends TypeError
   final case class VariableNotFound(name: String) extends TypeError
   final case class TypeMismatch(to: Type, from: Type) extends TypeError
+
+  def typeNotFound(name: String): TypeError =
+    TypeNotFound(name)
 
   def variableNotFound(name: String): TypeError =
     VariableNotFound(name)

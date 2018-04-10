@@ -97,8 +97,9 @@ class Macros(val c: blackbox.Context) {
     new Liftable[Stmt] {
       def apply(stmt: Stmt): Tree =
         stmt match {
-          case LetStmt(name, tpe, expr) => q"$pkg.LetStmt($name, $tpe, $expr)"
           case ExprStmt(expr)           => q"$pkg.ExprStmt($expr)"
+          case LetStmt(name, tpe, expr) => q"$pkg.LetStmt($name, $tpe, $expr)"
+          case LetTypeStmt(name, tpe)   => q"$pkg.LetTypeStmt($name, $tpe)"
         }
     }
 
@@ -143,7 +144,7 @@ class Macros(val c: blackbox.Context) {
     new Liftable[Type] {
       def apply(tpe: Type): Tree =
         tpe match {
-          case TypeVar(id)             => q"$pkg.TypeVar($id)"
+          // case TypeVar(id)             => q"$pkg.TypeVar($id)"
           case TypeRef(name)           => q"$pkg.TypeRef($name)"
           case FuncType(aTypes, rType) => q"$pkg.FuncType($aTypes, $rType)"
           case UnionType(types)        => q"$pkg.UnionType($types)"
@@ -166,7 +167,7 @@ class Macros(val c: blackbox.Context) {
   implicit def setLiftable[A: Liftable]: Liftable[Set[A]] =
     new Liftable[Set[A]] {
       def apply(list: Set[A]): Tree =
-        q"_root_.scala.Set(..$list)"
+        q"_root_.scala.collection.immutable.Set(..$list)"
     }
 
   implicit def pairLiftable[A: Liftable]: Liftable[(String, A)] =

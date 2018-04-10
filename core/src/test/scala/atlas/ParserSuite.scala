@@ -167,6 +167,44 @@ object TypeParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
           List(StrType, FuncType(List(DblType), StrType)),
           BoolType)))
   }
+
+  test("union") {
+    assert.complete(
+      "Boolean | String",
+      BoolType | StrType)
+
+    // TODO: Should function types be higher or lower precedence than union types?
+    assert.complete(
+      "Int -> Boolean | String",
+      FuncType(List(IntType), BoolType | StrType))
+
+    // TODO: Should function types be higher or lower precedence than union types?
+    assert.complete(
+      "(Int -> Boolean) | String",
+      FuncType(List(IntType), BoolType) | StrType)
+  }
+
+  test("nullable") {
+    assert.complete(
+      "(String?)",
+      StrType.?)
+
+    assert.complete(
+      "(String -> Int?)",
+      FuncType(List(StrType), IntType.?))
+
+    assert.complete(
+      "(A?, B?) -> C?",
+      FuncType(List(TypeRef("A").?, TypeRef("B").?), TypeRef("C").?))
+
+    assert.complete(
+      "(A? | B?)",
+      TypeRef("A").? | TypeRef("B").?)
+
+    assert.complete(
+      "(Foo | Bar)?",
+      TypeRef("Foo") | TypeRef("Bar") | NullType)
+  }
 }
 
 object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteHelpers {
@@ -262,6 +300,40 @@ object ExprParserSuite extends SimpleTestSuite with AllParsers with ParserSuiteH
         InfixExpr(Gt, RefExpr("a"), RefExpr("b")),
         InfixExpr(Add, RefExpr("c"), RefExpr("d")),
         InfixExpr(Add, RefExpr("e"), RefExpr("f"))))
+  }
+
+  test("cast") {
+    assert.complete(
+      "123 : Int",
+      CastExpr(IntExpr(123), IntType))
+
+    assert.complete(
+      "123 + 234: Int",
+      InfixExpr(
+        InfixOp.Add,
+        IntExpr(123),
+        CastExpr(IntExpr(234), IntType)))
+
+    assert.complete(
+      "(123 + 234): Int",
+      CastExpr(
+        InfixExpr(
+          InfixOp.Add,
+          IntExpr(123),
+          IntExpr(234)),
+        IntType))
+
+    assert.complete(
+      "123 : Int | String",
+      CastExpr(
+        IntExpr(123),
+        IntType | StrType))
+
+    assert.complete(
+      "123 : (Int | String)",
+      CastExpr(
+        IntExpr(123),
+        IntType | StrType))
   }
 
   test("call") {

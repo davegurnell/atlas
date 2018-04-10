@@ -65,6 +65,9 @@ trait AllParsers {
   val letKw: Parser[Unit] =
     P("let" ~ !identCont)
 
+  val letTypeKw: Parser[Unit] =
+    P("type" ~ !identCont)
+
   val doKw: Parser[Unit] =
     P("do" ~ !identCont)
 
@@ -90,7 +93,7 @@ trait AllParsers {
     P("null" ~ !identCont)
 
   val keyword: Parser[Unit] =
-    P(letKw | doKw | endKw | ifKw | thenKw | elseKw | falseKw | trueKw | nullKw)
+    P(letKw | letTypeKw | doKw | endKw | ifKw | thenKw | elseKw | falseKw | trueKw | nullKw)
 
   val ident: Parser[String] =
     P(!keyword ~ identStart ~ identCont.rep).!
@@ -200,15 +203,34 @@ trait AllParsers {
       .map { case (argType, resType) => FuncType(List(argType), resType) }
 
   val funcType: Parser[Type] =
-    P(parenFuncTypeHit | noParenFuncTypeHit | parenType)
+    P(parenFuncTypeHit | noParenFuncTypeHit | unionType)
+
+  // -----
+
+  val unionType: Parser[Type] =
+    P(nullableType ~ (ws ~ "|" ~ ws ~ tpe).rep).map {
+      case (head, tail) =>
+        tail.foldLeft(head)(Type.union)
+    }
+
+  // -----
+
+  val nullableType: Parser[Type] =
+    P(parenType ~ (ws ~ "?".!).rep).map {
+      case (tpe, Nil) => tpe
+      case (tpe, qns) => tpe.?
+    }
 
   // -----
 
   val parenTypeHit: Parser[Type] =
     P("(" ~ ws ~ tpe ~ ws ~ ")")
 
+  val parenTypeMiss: Parser[Type] =
+    P(atomicType)
+
   val parenType: Parser[Type] =
-    P(parenTypeHit | atomicType)
+    P(parenTypeHit | parenTypeMiss)
 
   // -----
 
@@ -228,7 +250,7 @@ trait AllParsers {
     P(nullTypeKw).map(_ => NullType)
 
   val typeRef: Parser[Type] =
-    P(!typeKw ~ ident).map(TypeRef)
+    P(ident).map(TypeRef)
 
   val atomicType: Parser[Type] =
     P(intType | dblType | strType | boolType | nullType | typeRef)
@@ -236,13 +258,17 @@ trait AllParsers {
   // -----
 
   val stmt: Parser[Stmt] =
-    P(letStmt | exprStmt)
+    P(letStmt | letTypeStmt | exprStmt)
 
   // -----
 
   val letStmt: Parser[Stmt] =
     P(letKw ~ ws ~/ ident ~ ws ~ (":" ~ ws ~ tpe ~ ws).? ~ "=" ~ ws ~/ expr)
       .map { case (name, tpe, expr) => LetStmt(name, tpe, expr) }
+
+  val letTypeStmt: Parser[Stmt] =
+    P(letTypeKw ~ ws ~/ ident ~ ws ~ "=" ~ ws ~/ tpe)
+      .map { case (name, tpe) => LetTypeStmt(name, tpe) }
 
   val exprStmt: Parser[Stmt] =
     P(expr).map(ExprStmt)
@@ -256,8 +282,9 @@ trait AllParsers {
 
   def validateBlock(stmts: Seq[Stmt]): Parser[Expr] =
     (stmts.init, stmts.last) match {
-      case (stmts, last: LetStmt)  => Fail // BlockExpr(stmts, expr)
-      case (stmts, last: ExprStmt) => Pass.map(_ => BlockExpr(stmts.toList, last.expr))
+      case (stmts, last: ExprStmt)    => Pass.map(_ => BlockExpr(stmts.toList, last.expr))
+      case (stmts, last: LetStmt)     => Fail
+      case (stmts, last: LetTypeStmt) => Fail
     }
 
   val blockHit: Parser[Expr] =

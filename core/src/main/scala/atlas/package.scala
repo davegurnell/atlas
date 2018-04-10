@@ -5,5 +5,5 @@ package object atlas {
   type TypeEnv = ScopeChain[String, Type]
 
   type EvalStep[F[_], A] = StateT[F, (Env[F], Limits), A]
-  type TypeStep[F[_], A] = StateT[F, TypeEnv, A]
+  type TypeStep[F[_], A] = StateT[F, (Int, TypeEnv), A]
 }
