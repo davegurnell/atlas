@@ -67,19 +67,19 @@ trait InfixImpl[F[_]] {
   private val not: Native[F] =
     native((a: Boolean) => !a)
 
-  def infixImpl(op: InfixOp): Native[F] =
-    op match {
-      case InfixOp.Add  => add
-      case InfixOp.Sub  => sub
-      case InfixOp.Mul  => mul
-      case InfixOp.Div  => div
-      case InfixOp.And  => and
-      case InfixOp.Or   => or
-      case InfixOp.Eq   => eq
-      case InfixOp.Ne   => ne
-      case InfixOp.Gt   => gt
-      case InfixOp.Lt   => lt
-      case InfixOp.Gte  => gte
-      case InfixOp.Lte  => lte
-    }
+  def infixBindings: List[(String, Native[F])] =
+    List(
+      "infix:+"  -> add,
+      "infix:-"  -> sub,
+      "infix:*"  -> mul,
+      "infix:/"  -> div,
+      "infix:&&" -> and,
+      "infix:||" -> or,
+      "infix:==" -> eq,
+      "infix:!=" -> ne,
+      "infix:>"  -> gt,
+      "infix:<"  -> lt,
+      "infix:>=" -> gte,
+      "infix:<=" -> lte,
+    )
 }

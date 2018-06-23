@@ -14,10 +14,10 @@ trait PrefixImpl[F[_]] {
   private val not: Native[F] =
     native((a: Boolean) => !a)
 
-  def prefixImpl(op: PrefixOp): Native[F] =
-    op match {
-      case PrefixOp.Pos => pos
-      case PrefixOp.Neg => neg
-      case PrefixOp.Not => not
-    }
+  def prefixBindings: List[(String, Value[F])] =
+    List(
+      "prefix:+" -> pos,
+      "prefix:+" -> neg,
+      "prefix:+" -> not,
+    )
 }

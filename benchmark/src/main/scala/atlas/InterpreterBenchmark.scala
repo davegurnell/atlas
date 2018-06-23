@@ -49,9 +49,9 @@ abstract class InterpreterBenchmark[F[_]] {
       """
 
     val env =
-      Env.create[F].set("n", n)
+      interpreter.env.set("n", n)
 
-    unpack(interpreter.evalAs[Int](program, env))
+    unpack(interpreter.evalAs[Int](program.desugar, env))
   }
 
   def fib(n: Int): Int = {
@@ -64,9 +64,9 @@ abstract class InterpreterBenchmark[F[_]] {
       """
 
     val env =
-      Env.create[F].set("n", n)
+      interpreter.env.set("n", n)
 
-    unpack(interpreter.evalAs[Int](program, env))
+    unpack(interpreter.evalAs[Int](program.desugar, env))
   }
 
 

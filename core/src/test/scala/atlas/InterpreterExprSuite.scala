@@ -41,7 +41,7 @@ abstract class InterpreterExprSuite[F[_]](interpreter: Interpreter[F])(implicit 
     assertSuccess(
       expr"foo",
       true,
-      Env.create[F].set("foo", true),
+      interpreter.env.set("foo", true),
     )
   }
 
@@ -57,7 +57,7 @@ abstract class InterpreterExprSuite[F[_]](interpreter: Interpreter[F])(implicit 
       add(mul(a, b), mul(4, 5))
       """
 
-    val env = Env.create[F]
+    val env = interpreter.env
      .set("add", native((a: Int, b: Int) => a + b))
      .set("mul", native((a: Int, b: Int) => a * b))
      .set("a", 2)

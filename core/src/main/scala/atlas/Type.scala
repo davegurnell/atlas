@@ -11,14 +11,15 @@ sealed abstract class Type extends Product with Serializable {
     Type.union(this, NullType)
 }
 
-// final case class TypeVar(id: Int) extends Type
-final case class TypeRef(name: String) extends Type
+final case class TypeVar(name: String) extends Type
+final case class RefType(name: String) extends Type
 
-final case class FuncType(argTypes: List[Type], returnType: Type) extends Type
+final case class FuncType(args: List[Type], res: Type) extends Type
 final case class UnionType(types: Set[Type]) extends Type
+final case class IntersectionType(types: Set[Type]) extends Type
 
-final case class ObjType(fieldTypes: List[(String, Type)]) extends Type
-final case class ArrType(itemType: Type) extends Type
+final case class ObjType(fields: List[(String, Type)]) extends Type
+final case class ArrType(arg: Type) extends Type
 
 case object StrType extends Type
 case object IntType extends Type

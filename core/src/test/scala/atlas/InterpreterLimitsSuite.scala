@@ -42,7 +42,7 @@ abstract class InterpreterLimitsSuite[F[_]](interpreter: Interpreter[F])(implici
     assertSuccess(
       code,
       1,
-      limits = Limits.create.copy(pcLimit = Some(9)))
+      limits = Limits.create.copy(pcLimit = Some(10)))
   }
 
   test("runtime limit") {
@@ -53,7 +53,7 @@ abstract class InterpreterLimitsSuite[F[_]](interpreter: Interpreter[F])(implici
       end)
       """
 
-    val env = Env.create[F]
+    val env = interpreter.env
       .set("passthru", native.pure { (callback: () => EvalStep[F, Unit]) => callback() })
       .set("delay", native { (millis: Int) => Thread.sleep(1L * millis) })
 

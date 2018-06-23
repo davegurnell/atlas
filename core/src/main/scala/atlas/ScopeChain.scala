@@ -7,6 +7,9 @@ final case class Scope[K, V](var bindings: Map[K, V]) {
   def set(id: K, value: V): Scope[K, V] =
     Scope(bindings + ((id, value)))
 
+  def setAll(bindings: Seq[(K, V)]): Scope[K, V] =
+    Scope(bindings.foldLeft(this.bindings)(_ + _))
+
   def destructiveSet(id: K, value: V): Unit =
     bindings = bindings + ((id, value))
 
@@ -26,6 +29,9 @@ final case class ScopeChain[K, V](scopes: List[Scope[K, V]]) {
 
   def set(id: K, value: V): ScopeChain[K, V] =
     ScopeChain(scopes.head.set(id, value) :: scopes.tail)
+
+  def setAll(bindings: Seq[(K, V)]): ScopeChain[K, V] =
+    ScopeChain(scopes.head.setAll(bindings) :: scopes.tail)
 
   def destructiveSet(id: K, value: V): Unit =
     scopes.head.destructiveSet(id, value)

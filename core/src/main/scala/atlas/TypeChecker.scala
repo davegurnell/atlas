@@ -1,206 +1,211 @@
-package atlas
+// package atlas
 
-import cats.MonadError
-import cats.data.StateT
-import cats.instances.either._
-import cats.instances.list._
-import cats.syntax.all._
+// import cats.MonadError
+// import cats.data.StateT
+// import cats.instances.either._
+// import cats.instances.list._
+// import cats.syntax.all._
 
-object TypeChecker {
-  type Out[A] = Either[TypeError, A]
+// object TypeEnv {
+//   def create: TypeEnv =
+//     ScopeChain.create
+// }
 
-  type Step[A] = TypeStep[Out, A]
+// object TypeChecker {
+//   type Out[A] = Either[TypeError, A]
 
-  def check(expr: Expr, env: TypeEnv = TypeEnv.create): Out[Type] =
-    checkExpr(expr).runA((0, env))
+//   type Step[A] = TypeStep[Out, A]
 
-  def checkExpr(expr: Expr): Step[Type] =
-    expr match {
-      case expr: RefExpr    => checkRef(expr)
-      case expr: AppExpr    => checkApp(expr)
-      case expr: InfixExpr  => checkInfix(expr)
-      case expr: PrefixExpr => checkPrefix(expr)
-      case expr: FuncExpr   => checkFunc(expr)
-      case expr: BlockExpr  => checkBlock(expr)
-      case expr: SelectExpr => checkSelect(expr)
-      case expr: CondExpr   => checkCond(expr)
-      case expr: CastExpr   => checkCast(expr)
-      case ParenExpr(expr)  => checkExpr(expr)
-      case expr: ObjExpr    => checkObj(expr)
-      case expr: ArrExpr    => checkArr(expr)
-      case StrExpr(value)   => pure(StrType)
-      case IntExpr(value)   => pure(IntType)
-      case DblExpr(value)   => pure(DblType)
-      case BoolExpr(value)  => pure(BoolType)
-      case NullExpr         => pure(NullType)
-    }
+//   def check(expr: ExprStx, env: TypeEnv = TypeEnv.create): Out[Type] =
+//     checkExprStx(expr).runA((0, env))
 
-  def checkRef(ref: RefExpr): Step[Type] =
-    getType(ref.id)
+//   def checkExprStx(expr: ExprStx): Step[Type] =
+//     expr match {
+//       case expr: RefExprStx    => checkRef(expr)
+//       case expr: AppExprStx    => checkApp(expr)
+//       case expr: InfixExprStx  => checkInfix(expr)
+//       case expr: PrefixExprStx => checkPrefix(expr)
+//       case expr: FuncExprStx   => checkFunc(expr)
+//       case expr: BlockExprStx  => checkBlock(expr)
+//       case expr: SelectExprStx => checkSelect(expr)
+//       case expr: CondExprStx   => checkCond(expr)
+//       case expr: CastExprStx   => checkCast(expr)
+//       case ParenExprStx(expr)  => checkExprStx(expr)
+//       case expr: ObjExprStx    => checkObj(expr)
+//       case expr: ArrExprStx    => checkArr(expr)
+//       case StrExprStx(value)   => pure(StrType)
+//       case IntExprStx(value)   => pure(IntType)
+//       case DblExprStx(value)   => pure(DblType)
+//       case BoolExprStx(value)  => pure(BoolType)
+//       case NullExprStx         => pure(NullType)
+//     }
 
-  def checkApp(apply: AppExpr): Step[Type] =
-    ???
+//   def checkRef(ref: RefExprStx): Step[Type] =
+//     getType(ref.name)
 
-  def checkInfix(infix: InfixExpr): Step[Type] =
-    ???
+//   def checkApp(apply: AppExprStx): Step[Type] =
+//     ???
 
-  def checkPrefix(prefix: PrefixExpr): Step[Type] =
-    ???
+//   def checkInfix(infix: InfixExprStx): Step[Type] =
+//     ???
 
-  def checkFunc(func: FuncExpr): Step[Type] =
-    pushScope {
-      def checkFuncArg(arg: FuncArg): Step[Unit] =
-        arg.argType match {
-          case Some(tpe) => setType(arg.argName, tpe)
-          case None      => genType.flatMap(setType(arg.argName, _))
-        }
+//   def checkPrefix(prefix: PrefixExprStx): Step[Type] =
+//     ???
 
-      for {
-        args <- func.args.traverse(checkFuncArg)
-        expr <- checkExpr(func.body)
-        ans  <- func.retType.fold(pure(expr))(assertAssignable(_, expr))
-      } yield ans
-    }
+//   def checkFunc(func: FuncExprStx): Step[Type] =
+//     pushScope {
+//       def checkFuncArg(arg: FuncArgStx): Step[Unit] =
+//         arg.tpe match {
+//           case Some(tpe) => setType(arg.name, tpe)
+//           case None      => genType.flatMap(setType(arg.name, _))
+//         }
 
-  def checkBlock(block: BlockExpr): Step[Type] =
-    for {
-      _   <- checkStmts(block.stmts)
-      ans <- checkExpr(block.expr)
-    } yield ans
+//       for {
+//         args <- func.args.traverse(checkFuncArg)
+//         expr <- checkExprStx(func.body)
+//         ans  <- func.retType.fold(pure(expr))(assertAssignable(_, expr))
+//       } yield ans
+//     }
 
-  def checkStmts(stmts: List[Stmt]): Step[Unit] =
-    stmts.traverse(checkStmt).map(_ => ())
+//   def checkBlock(block: BlockExprStx): Step[Type] =
+//     for {
+//       _   <- checkStmts(block.stmts)
+//       ans <- checkExprStx(block.expr)
+//     } yield ans
 
-  def checkStmt(stmt: Stmt): Step[Unit] =
-    stmt match {
-      case stmt: ExprStmt    => checkExpr(stmt.expr).map(_ => ())
-      case stmt: LetStmt     => checkLetStmt(stmt)
-      case stmt: LetTypeStmt => checkLetTypeStmt(stmt)
-    }
+//   def checkStmts(stmts: List[Stmt]): Step[Unit] =
+//     stmts.traverse(checkStmt).map(_ => ())
 
-  def checkExprStmt(stmt: ExprStmt): Step[Unit] =
-    checkExpr(stmt.expr).map(_ => ())
+//   def checkStmt(stmt: Stmt): Step[Unit] =
+//     stmt match {
+//       case stmt: ExprStxStmt    => checkExprStx(stmt.expr).map(_ => ())
+//       case stmt: LetStmt     => checkLetStmt(stmt)
+//       case stmt: TypeStmt => checkTypeStmt(stmt)
+//     }
 
-  def checkLetStmt(stmt: LetStmt): Step[Unit] =
-    for {
-      expr <- checkExpr(stmt.expr)
-      tpe  <- stmt.varType.fold(pure(expr))(assertAssignable(_, expr))
-      _    <- setType(stmt.varName, tpe)
-    } yield ()
+//   def checkExprStxStmt(stmt: ExprStxStmt): Step[Unit] =
+//     checkExprStx(stmt.expr).map(_ => ())
 
-  def checkLetTypeStmt(stmt: LetTypeStmt): Step[Unit] =
-    aliasType(stmt.typeName, stmt.asType)
+//   def checkLetStmt(stmt: LetStmt): Step[Unit] =
+//     for {
+//       expr <- checkExprStx(stmt.expr)
+//       tpe  <- stmt.tpe.fold(pure(expr))(assertAssignable(_, expr))
+//       _    <- setType(stmt.name, tpe)
+//     } yield ()
 
-  def checkSelect(select: SelectExpr): Step[Type] =
-    ???
+//   def checkTypeStmt(stmt: TypeStmt): Step[Unit] =
+//     aliasType(stmt.typeName, stmt.asType)
 
-  def checkCond(cond: CondExpr): Step[Type] =
-    for {
-      test     <- checkExpr(cond.test)
-      _        <- assertAssignable(BoolType, test)
-      trueArm  <- checkExpr(cond.trueArm)
-      falseArm <- checkExpr(cond.falseArm)
-    } yield Type.union(trueArm, falseArm)
+//   def checkSelect(select: SelectExprStx): Step[Type] =
+//     ???
 
-  def checkCast(cast: CastExpr): Step[Type] =
-    for {
-      expr <- checkExpr(cast.expr)
-      tpe  <- assertAssignable(cast.asType, expr)
-    } yield tpe
+//   def checkCond(cond: CondExprStx): Step[Type] =
+//     for {
+//       test     <- checkExprStx(cond.test)
+//       _        <- assertAssignable(BoolType, test)
+//       trueArm  <- checkExprStx(cond.trueArm)
+//       falseArm <- checkExprStx(cond.falseArm)
+//     } yield Type.union(trueArm, falseArm)
 
-  def checkObj(obj: ObjExpr): Step[Type] =
-    ???
+//   def checkCast(cast: CastExprStx): Step[Type] =
+//     for {
+//       expr <- checkExprStx(cast.expr)
+//       tpe  <- assertAssignable(cast.asType, expr)
+//     } yield tpe
 
-  def checkArr(arr: ArrExpr): Step[Type] =
-    arr.exprs.traverse(checkExpr).map(types => ArrType(Type.unionAll(types)))
+//   def checkObj(obj: ObjExprStx): Step[Type] =
+//     ???
 
-  // Resolving, unifying, and checking types ----
+//   def checkArr(arr: ArrExprStx): Step[Type] =
+//     arr.exprs.traverse(checkExprStx).map(types => ArrType(Type.unionAll(types)))
 
-  /** Check we can assign to type `a` with a value of type `b`. */
-  def assertAssignable(a: Type, b: Type): Step[Type] =
-    for {
-      a   <- resolveType(a)
-      b   <- resolveType(b)
-      ans <- if(Type.isAssignable(a, b)) {
-               pure(a)
-             } else {
-               fail(TypeError.typeMismatch(a, b))
-             }
-    } yield ans
+//   // Resolving, unifying, and checking types ----
 
-  /** Unify `a` and `b`, setting type variables as necessary. */
-  def unify(a: Type, b: Type): Step[Type] =
-    (a, b) match {
-      case (a: TypeRef, b: TypeRef) => resolveType(b).flatMap(unify(a, _))
-      case (a: TypeRef, b         ) => aliasType(a.name, b).map(_ => b)
-      case (a         , b: TypeRef) => aliasType(b.name, a).map(_ => a)
-      case (a         , b         ) => assertAssignable(a, b).map(_ => a)
-    }
+//   /** Check we can assign to type `a` with a value of type `b`. */
+//   def assertAssignable(a: Type, b: Type): Step[Type] =
+//     for {
+//       a   <- resolveType(a)
+//       b   <- resolveType(b)
+//       ans <- if(Type.isAssignable(a, b)) {
+//                pure(a)
+//              } else {
+//                fail(TypeError.typeMismatch(a, b))
+//              }
+//     } yield ans
 
-  def resolveType(tpe: Type): Step[Type] =
-    tpe match {
-      case ref: TypeRef =>
-        inspectEnv(env => env.get(s"type:${ref.name}").pure[Out])
-          .flatMap[Type, (Int, TypeEnv)] {
-            case Some(tpe) => resolveType(tpe)
-            case None      => fail(TypeError.typeNotFound(ref.name))
-          }
+//   /** Unify `a` and `b`, setting type variables as necessary. */
+//   def unify(a: Type, b: Type): Step[Type] =
+//     (a, b) match {
+//       case (a: RefType, b: RefType) => resolveType(b).flatMap(unify(a, _))
+//       case (a: RefType, b         ) => aliasType(a.name, b).map(_ => b)
+//       case (a         , b: RefType) => aliasType(b.name, a).map(_ => a)
+//       case (a         , b         ) => assertAssignable(a, b).map(_ => a)
+//     }
 
-      case FuncType(args, res) =>
-        for {
-          args <- args.traverse(resolveType)
-          res  <- resolveType(res)
-        } yield FuncType(args, res)
+//   def resolveType(tpe: Type): Step[Type] =
+//     tpe match {
+//       case ref: RefType =>
+//         inspectEnv(env => env.get(s"type:${ref.name}").pure[Out])
+//           .flatMap[Type, (Int, TypeEnv)] {
+//             case Some(tpe) => resolveType(tpe)
+//             case None      => fail(TypeError.typeNotFound(ref.name))
+//           }
 
-      case UnionType(types) =>
-        for {
-          types <- types.toList.traverse(resolveType)
-        } yield UnionType(types.toSet)
+//       case FuncType(args, res) =>
+//         for {
+//           args <- args.traverse(resolveType)
+//           res  <- resolveType(res)
+//         } yield FuncType(args, res)
 
-      case tpe: Type =>
-        pure(tpe)
-    }
+//       case UnionType(types) =>
+//         for {
+//           types <- types.toList.traverse(resolveType)
+//         } yield UnionType(types.toSet)
 
-  def aliasType(typeName: String, tpe: Type): Step[Unit] =
-    inspectEnv(env => env.destructiveSet(s"type:$typeName", tpe).pure[Out])
+//       case tpe: Type =>
+//         pure(tpe)
+//     }
 
-  def genType: Step[TypeRef] =
-    nextTypeId(id => TypeRef(s"!$id").pure[Out])
+//   def aliasType(typeName: String, tpe: Type): Step[Unit] =
+//     inspectEnv(env => env.destructiveSet(s"type:$typeName", tpe).pure[Out])
 
-  def getType(varName: String): Step[Type] =
-    inspectEnv(env => env.get(s"var:$varName").pure[Out])
-      .flatMap[Type, (Int, TypeEnv)] {
-        case Some(tpe) => pure(tpe)
-        case None      => fail(TypeError.variableNotFound(varName))
-      }
-      .flatMap(resolveType)
+//   def genType: Step[RefType] =
+//     nextTypeId(id => RefType(s"!$id").pure[Out])
 
-  def setType(varName: String, value: Type): Step[Unit] =
-    inspectEnv(env => env.destructiveSet(s"var:$varName", value).pure[Out])
+//   def getType(name: String): Step[Type] =
+//     inspectEnv(env => env.get(s"var:$name").pure[Out])
+//       .flatMap[Type, (Int, TypeEnv)] {
+//         case Some(tpe) => pure(tpe)
+//         case None      => fail(TypeError.variableNotFound(name))
+//       }
+//       .flatMap(resolveType)
 
-  // Environment primitives ---------------------
+//   def setType(name: String, value: Type): Step[Unit] =
+//     inspectEnv(env => env.destructiveSet(s"var:$name", value).pure[Out])
 
-  def pushScope[A](body: Step[A]): Step[A] =
-    for {
-      _   <- updateEnv(_.push.pure[Out])
-      ans <- body
-      _   <- updateEnv(_.pop.pure[Out])
-    } yield ans
+//   // Environment primitives ---------------------
 
-  def inspectEnv[A](func: TypeEnv => Out[A]): Step[A] =
-    StateT.inspectF { case (nextId, env) => func(env) }
+//   def pushScope[A](body: Step[A]): Step[A] =
+//     for {
+//       _   <- updateEnv(_.push.pure[Out])
+//       ans <- body
+//       _   <- updateEnv(_.pop.pure[Out])
+//     } yield ans
 
-  def updateEnv(func: TypeEnv => Out[TypeEnv]): Step[Unit] =
-    StateT.modifyF { case (nextId, env) => func(env).map(env => (nextId, env)) }
+//   def inspectEnv[A](func: TypeEnv => Out[A]): Step[A] =
+//     StateT.inspectF { case (nextId, env) => func(env) }
 
-  def nextTypeId[A](func: Int => Out[A]): Step[A] =
-    StateT.apply { case (nextId, env) => func(nextId).map(a => ((nextId + 1, env), a)) }
+//   def updateEnv(func: TypeEnv => Out[TypeEnv]): Step[Unit] =
+//     StateT.modifyF { case (nextId, env) => func(env).map(env => (nextId, env)) }
 
-  // Success/failure primitives -----------------
+//   def nextTypeId[A](func: Int => Out[A]): Step[A] =
+//     StateT.apply { case (nextId, env) => func(nextId).map(a => ((nextId + 1, env), a)) }
 
-  def pure[A](value: A): Step[A] =
-    value.pure[Step]
+//   // Success/failure primitives -----------------
 
-  def fail[A](error: TypeError): Step[A] =
-    error.raiseError[Step, A]
-}
+//   def pure[A](value: A): Step[A] =
+//     value.pure[Step]
+
+//   def fail[A](error: TypeError): Step[A] =
+//     error.raiseError[Step, A]
+// }

@@ -40,10 +40,17 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
    */
   object implicits extends NativeEncoders with NativeDecoders
 
-  def evalAs[A](expr: Expr, env: Env[F] = Env.create, limits: Limits = Limits.create)(implicit dec: ValueDecoder[F, A]): F[A] =
+  def env: Env[F] =
+    ScopeChain
+      .create[String, Value[F]]
+      .setAll(infixBindings)
+      .setAll(prefixBindings)
+      .setAll(basicBindings)
+
+  def evalAs[A](expr: Expr, env: Env[F] = env, limits: Limits = Limits.create)(implicit dec: ValueDecoder[F, A]): F[A] =
     eval(expr, env, limits).flatMap(dec.apply)
 
-  def eval(expr: Expr, env: Env[F] = Env.create, limits: Limits = Limits.create): F[Value[F]] =
+  def eval(expr: Expr, env: Env[F] = env, limits: Limits = Limits.create): F[Value[F]] =
     evalExpr(expr).runA((env, limits))
 
   def evalExpr(expr: Expr): Step[Value[F]] =
@@ -51,14 +58,11 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
       expr match {
         case expr: RefExpr     => evalRef(expr)
         case expr: AppExpr     => evalApp(expr)
-        case expr: InfixExpr   => evalInfix(expr)
-        case expr: PrefixExpr  => evalPrefix(expr)
         case expr: FuncExpr    => evalFunc(expr)
         case expr: BlockExpr   => evalBlock(expr)
         case expr: SelectExpr  => evalSelect(expr)
         case expr: CondExpr    => evalCond(expr)
         case CastExpr(expr, _) => evalExpr(expr)
-        case ParenExpr(expr)   => evalExpr(expr)
         case expr: ObjExpr     => evalObj(expr)
         case expr: ArrExpr     => evalArr(expr)
         case StrExpr(value)    => pure(StrVal(value))
@@ -70,7 +74,7 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     }
 
   def evalRef(ref: RefExpr): Step[Value[F]] =
-    getVariable(ref.id)
+    getVariable(ref.name)
 
   def evalApp(apply: AppExpr): Step[Value[F]] =
     for {
@@ -85,19 +89,6 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
       case native  : Native[F]  => applyNative(native, args)
       case value                => fail(s"Cannot call $value")
     }
-
-  def evalInfix(infix: InfixExpr): Step[Value[F]] =
-    for {
-      arg1 <- evalExpr(infix.arg1)
-      arg2 <- evalExpr(infix.arg2)
-      ans  <- applyNative(infixImpl(infix.op), List(arg1, arg2))
-    } yield ans
-
-  def evalPrefix(prefix: PrefixExpr): Step[Value[F]] =
-    for {
-      arg  <- evalExpr(prefix.arg)
-      ans  <- applyNative(prefixImpl(prefix.op), List(arg))
-    } yield ans
 
   def evalFunc(func: FuncExpr): Step[Value[F]] =
     createClosure(func)
@@ -117,15 +108,15 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
 
   def evalStmt(stmt: Stmt): Step[Unit] =
     stmt match {
-      case stmt: ExprStmt    => evalExprStmt(stmt)
-      case stmt: LetStmt     => evalLetStmt(stmt)
-      case stmt: LetTypeStmt => pure(())
+      case stmt: ExprStmt => evalExprStmt(stmt)
+      case stmt: LetStmt  => evalLetStmt(stmt)
+      case stmt: TypeStmt => pure(())
     }
 
   def evalLetStmt(stmt: LetStmt): Step[Unit] =
     for {
       value <- evalExpr(stmt.expr)
-      _     <- setVariable(stmt.varName, value)
+      _     <- setVariable(stmt.name, value)
     } yield NullVal()
 
   def evalExprStmt(stmt: ExprStmt): Step[Unit] =
@@ -169,7 +160,7 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     swapEnv(closure.env) {
       pushScope {
         for {
-          env <- setVariables(closure.func.args.map(_.argName).zip(args))
+          env <- setVariables(closure.func.args.map(_.name).zip(args))
           ans <- evalExpr(closure.func.body)
         } yield ans
       }

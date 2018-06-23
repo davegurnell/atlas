@@ -33,10 +33,11 @@ trait NativeImpl[F[_]] {
         list.flatten
     }
 
-  def basicEnv: Env[F] =
-    Env.create[F]
-      .set("map",     map)
-      .set("flatMap", flatMap)
-      .set("filter",  filter)
-      .set("flatten", flatten)
+  def basicBindings: List[(String, Value[F])] =
+    List(
+      "map"     -> map,
+      "flatMap" -> flatMap,
+      "filter"  -> filter,
+      "flatten" -> flatten,
+    )
 }

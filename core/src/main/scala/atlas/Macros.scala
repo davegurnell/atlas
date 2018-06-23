@@ -5,13 +5,13 @@ import fastparse.all._
 import scala.reflect.macros.blackbox
 
 class Macros(val c: blackbox.Context) {
-  import c.universe.{Expr => _, Type => _, TypeRef => _, _}
+  import c.universe._
 
   def exprMacro(args: Tree *): Tree =
-    macroImpl[Expr](Parser.parsers.exprToEnd, args)
+    macroImpl[ExprStx](Parser.parsers.exprToEnd, args)
 
   def progMacro(args: Tree *): Tree =
-    macroImpl[Expr](Parser.parsers.progToEnd, args)
+    macroImpl[ExprStx](Parser.parsers.progToEnd, args)
 
   private def macroImpl[A](parser: Parser[A], args: Seq[Tree])(implicit lift: Liftable[A]): Tree = {
     if(args.nonEmpty) {
@@ -69,45 +69,45 @@ class Macros(val c: blackbox.Context) {
 
   val pkg = q"_root_.atlas"
 
-  implicit lazy val exprLiftable: Liftable[Expr] =
-    new Liftable[Expr] {
-      def apply(expr: Expr): Tree =
+  implicit lazy val exprLiftable: Liftable[ExprStx] =
+    new Liftable[ExprStx] {
+      def apply(expr: ExprStx): Tree =
         expr match {
-          case RefExpr(id)                 => q"$pkg.RefExpr($id)"
-          case AppExpr(func, args)         => q"$pkg.AppExpr($func, $args)"
-          case InfixExpr(op, arg1, arg2)   => q"$pkg.InfixExpr($op, $arg1, $arg2)"
-          case PrefixExpr(op, arg)         => q"$pkg.PrefixExpr($op, $arg)"
-          case FuncExpr(args, rType, body) => q"$pkg.FuncExpr($args, $rType, $body)"
-          case BlockExpr(stmts, expr)      => q"$pkg.BlockExpr($stmts, $expr)"
-          case SelectExpr(expr, ref)       => q"$pkg.SelectExpr($expr, $ref)"
-          case CondExpr(test, arm1, arm2)  => q"$pkg.CondExpr($test, $arm1, $arm2)"
-          case CastExpr(expr, tpe)         => q"$pkg.CastExpr($expr, $tpe)"
-          case ParenExpr(expr)             => q"$pkg.ParenExpr($expr)"
-          case ObjExpr(fields)             => q"$pkg.ObjExpr($fields)"
-          case ArrExpr(items)              => q"$pkg.ArrExpr($items)"
-          case StrExpr(value)              => q"$pkg.StrExpr($value)"
-          case IntExpr(value)              => q"$pkg.IntExpr($value)"
-          case DblExpr(value)              => q"$pkg.DblExpr($value)"
-          case BoolExpr(value)             => q"$pkg.BoolExpr($value)"
-          case NullExpr                    => q"$pkg.NullExpr"
+          case RefExprStx(id)                        => q"$pkg.RefExprStx($id)"
+          case AppExprStx(func, args)                => q"$pkg.AppExprStx($func, $args)"
+          case InfixExprStx(op, arg1, arg2)          => q"$pkg.InfixExprStx($op, $arg1, $arg2)"
+          case PrefixExprStx(op, arg)                => q"$pkg.PrefixExprStx($op, $arg)"
+          case FuncExprStx(tArgs, args, rType, body) => q"$pkg.FuncExprStx($tArgs, $args, $rType, $body)"
+          case BlockExprStx(stmts, expr)             => q"$pkg.BlockExprStx($stmts, $expr)"
+          case SelectExprStx(expr, ref)              => q"$pkg.SelectExprStx($expr, $ref)"
+          case CondExprStx(test, arm1, arm2)         => q"$pkg.CondExprStx($test, $arm1, $arm2)"
+          case CastExprStx(expr, tpe)                => q"$pkg.CastExprStx($expr, $tpe)"
+          case ParenExprStx(expr)                    => q"$pkg.ParenExprStx($expr)"
+          case ObjExprStx(fields)                    => q"$pkg.ObjExprStx($fields)"
+          case ArrExprStx(items)                     => q"$pkg.ArrExprStx($items)"
+          case StrExprStx(value)                     => q"$pkg.StrExprStx($value)"
+          case IntExprStx(value)                     => q"$pkg.IntExprStx($value)"
+          case DblExprStx(value)                     => q"$pkg.DblExprStx($value)"
+          case BoolExprStx(value)                    => q"$pkg.BoolExprStx($value)"
+          case NullExprStx                           => q"$pkg.NullExprStx"
         }
     }
 
-  implicit lazy val stmtLiftable: Liftable[Stmt] =
-    new Liftable[Stmt] {
-      def apply(stmt: Stmt): Tree =
+  implicit lazy val stmtLiftable: Liftable[StmtStx] =
+    new Liftable[StmtStx] {
+      def apply(stmt: StmtStx): Tree =
         stmt match {
-          case ExprStmt(expr)           => q"$pkg.ExprStmt($expr)"
-          case LetStmt(name, tpe, expr) => q"$pkg.LetStmt($name, $tpe, $expr)"
-          case LetTypeStmt(name, tpe)   => q"$pkg.LetTypeStmt($name, $tpe)"
+          case ExprStmtStx(expr)           => q"$pkg.ExprStmtStx($expr)"
+          case LetStmtStx(name, tpe, expr) => q"$pkg.LetStmtStx($name, $tpe, $expr)"
+          case TypeStmtStx(name, tpe)      => q"$pkg.TypeStmtStx($name, $tpe)"
         }
     }
 
-  implicit lazy val argLiftable: Liftable[FuncArg] =
-    new Liftable[FuncArg] {
-      def apply(arg: FuncArg): Tree =
+  implicit lazy val argLiftable: Liftable[FuncArgStx] =
+    new Liftable[FuncArgStx] {
+      def apply(arg: FuncArgStx): Tree =
         arg match {
-          case FuncArg(name, tpe) => q"$pkg.FuncArg($name, $tpe)"
+          case FuncArgStx(name, tpe) => q"$pkg.FuncArgStx($name, $tpe)"
         }
     }
 
@@ -140,21 +140,22 @@ class Macros(val c: blackbox.Context) {
         }
     }
 
-  implicit lazy val typeLiftable: Liftable[Type] =
-    new Liftable[Type] {
-      def apply(tpe: Type): Tree =
+  implicit lazy val typeLiftable: Liftable[TypeStx] =
+    new Liftable[TypeStx] {
+      def apply(tpe: TypeStx): Tree =
         tpe match {
-          // case TypeVar(id)             => q"$pkg.TypeVar($id)"
-          case TypeRef(name)           => q"$pkg.TypeRef($name)"
-          case FuncType(aTypes, rType) => q"$pkg.FuncType($aTypes, $rType)"
-          case UnionType(types)        => q"$pkg.UnionType($types)"
-          case ObjType(fTypes)         => q"$pkg.ObjType($fTypes)"
-          case ArrType(iType)          => q"$pkg.ArrType($iType)"
-          case StrType                 => q"$pkg.StrType"
-          case IntType                 => q"$pkg.IntType"
-          case DblType                 => q"$pkg.DblType"
-          case BoolType                => q"$pkg.BoolType"
-          case NullType                => q"$pkg.NullType"
+          case RefTypeStx(name)             => q"$pkg.RefTypeStx($name)"
+          case FuncTypeStx(vars, args, res) => q"$pkg.FuncTypeStx($vars, $args, $res)"
+          case UnionTypeStx(a, b)           => q"$pkg.UnionTypeStx($a, $b)"
+          case NullableTypeStx(tpe)         => q"$pkg.NullableTypeStx($tpe)"
+          case ObjTypeStx(fields)           => q"$pkg.ObjTypeStx($fields)"
+          case ArrTypeStx(item)             => q"$pkg.ArrTypeStx($item)"
+          case ParenTypeStx(tpe)            => q"$pkg.ParenTypeStx($tpe)"
+          case StrTypeStx                   => q"$pkg.StrTypeStx"
+          case IntTypeStx                   => q"$pkg.IntTypeStx"
+          case DblTypeStx                   => q"$pkg.DblTypeStx"
+          case BoolTypeStx                  => q"$pkg.BoolTypeStx"
+          case NullTypeStx                  => q"$pkg.NullTypeStx"
         }
     }
 

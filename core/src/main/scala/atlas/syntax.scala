@@ -23,10 +23,10 @@ object syntax {
   }
 
   implicit class AtlasStringOps(val ctx: StringContext) extends AnyVal {
-    def expr(args: Any *): Expr =
+    def expr(args: Any *): ExprStx =
       macro Macros.exprMacro
 
-    def prog(args: Any *): Expr =
+    def prog(args: Any *): ExprStx =
       macro Macros.progMacro
   }
 }
