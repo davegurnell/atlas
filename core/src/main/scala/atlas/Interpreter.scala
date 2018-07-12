@@ -1,6 +1,6 @@
 package atlas
 
-import cats.data.{EitherT, StateT}
+import cats.data._
 import cats.implicits._
 import cats.{Eval, MonadError}
 
@@ -205,10 +205,10 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     } yield ans
 
   def inspectEnv[A](func: Env[F] => F[A]): Step[A] =
-    StateT.inspectF { case (env, limits) => func(env) }
+    EvalStep.inspectF { case (env, limits) => func(env) }
 
   def updateEnv(func: Env[F] => F[Env[F]]): Step[Unit] =
-    StateT.modifyF { case (env, limits) => func(env).map(env => (env, limits)) }
+    EvalStep.modifyF { case (env, limits) => func(env).map(env => (env, limits)) }
 
   // Monitoring helpers -------------------------
 
@@ -216,7 +216,7 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     checkLimits.flatMap(_ => body)
 
   def checkLimits: Step[Unit] =
-    StateT.modifyF {
+    EvalStep.modifyF {
       case (env, limits) =>
         def pcFailure: Option[F[(Env[F], Limits)]] =
           limits.pcLimit.collect {
@@ -237,21 +237,21 @@ class Interpreter[F[_]](implicit val monad: MonadError[F, RuntimeError])
     }
 
   def inspectLimits[A](func: Limits => F[A]): Step[A] =
-    StateT.inspectF { case (env, limits) => func(limits) }
+    EvalStep.inspectF { case (env, limits) => func(limits) }
 
   def updateLimits(func: Limits => F[Limits]): Step[Unit] =
-    StateT.modifyF { case (env, limits) => func(limits).map(limits => (env, limits)) }
+    EvalStep.modifyF { case (env, limits) => func(limits).map(limits => (env, limits)) }
 
   // Error handling helpers ---------------------
 
-  def pure[A](value: A): Step[A] =
-    StateT(env => (env, value).pure[F])
+  @inline private final def pure[A](value: A): Step[A] =
+    EvalStep(env => (env, value).pure[F])
 
-  def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
+  @inline private final def fail[A](msg: String, cause: Option[Exception] = None): Step[A] =
     RuntimeError(msg, cause).raiseError[Step, A]
 
   def catchNonFatal[A](body: => A): Step[A] =
-    StateT.liftF {
+    EvalStep.liftF {
       try {
         body.pure[F]
       } catch {

@@ -1,7 +1,6 @@
 package atlas
 
 import cats.MonadError
-import cats.data.StateT
 import cats.syntax.all._
 import shapeless.Lazy
 
@@ -18,7 +17,7 @@ trait InterpreterBoilerplate[F[_]] {
       Native {
         case [#v1# :: ] :: Nil =>
           for {
-            [#v1 <- StateT.liftF(argDec1(v1))#
+            [#v1 <- EvalStep.liftF(argDec1(v1))#
             ]
             res <- catchNonFatal(func([#v1#]))
           } yield resEnc(res)
@@ -39,7 +38,7 @@ trait InterpreterBoilerplate[F[_]] {
       Native {
         case [#v1# :: ] :: Nil =>
           for {
-            [#a1 <- StateT.liftF(argDec1(v1))#
+            [#a1 <- EvalStep.liftF(argDec1(v1))#
             ]
             res <- func([#a1#])
           } yield resEnc(res)
@@ -83,7 +82,7 @@ trait InterpreterBoilerplate[F[_]] {
         Native {
           case [#v1# :: ] :: Nil =>
             for {
-              [#a1 <- StateT.liftF(argDec1(v1))#
+              [#a1 <- EvalStep.liftF(argDec1(v1))#
               ]
               res <- func([#a1#])
             } yield resEnc(res)
@@ -108,7 +107,7 @@ trait InterpreterBoilerplate[F[_]] {
           monad.pure { () =>
             for {
               res <- applyClosure(closure, Nil)
-              ans <- StateT.liftF(dec(res))
+              ans <- EvalStep.liftF(dec(res))
             } yield ans
           }
 
@@ -116,7 +115,7 @@ trait InterpreterBoilerplate[F[_]] {
           monad.pure { () =>
             for {
               res <- applyNative(native, Nil)
-              ans <- StateT.liftF(dec(res))
+              ans <- EvalStep.liftF(dec(res))
             } yield ans
           }
 
@@ -139,7 +138,7 @@ trait InterpreterBoilerplate[F[_]] {
             val args = List([#enc1(arg1)#])
             for {
               res <- applyClosure(closure, args)
-              ans <- StateT.liftF(dec(res))
+              ans <- EvalStep.liftF(dec(res))
             } yield ans
           }
 
@@ -148,7 +147,7 @@ trait InterpreterBoilerplate[F[_]] {
             val args = List([#enc1(arg1)#])
             for {
               res <- applyNative(native, args)
-              ans <- StateT.liftF(dec(res))
+              ans <- EvalStep.liftF(dec(res))
             } yield ans
           }
 

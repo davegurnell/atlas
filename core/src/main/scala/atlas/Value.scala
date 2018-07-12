@@ -1,7 +1,6 @@
 package atlas
 
 import cats.MonadError
-import cats.data.StateT
 import cats.implicits._
 
 sealed abstract class Value[F[_]] extends Product with Serializable
