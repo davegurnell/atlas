@@ -102,8 +102,6 @@ lazy val core = project.in(file("core"))
     testFrameworks += new TestFramework("minitest.runner.Framework"),
   )
 
-
-// jmh:run -i 10 -wi 10 -f 2 -t 1
 lazy val benchmark = project.in(file("benchmark"))
   .dependsOn(core)
   .enablePlugins(JmhPlugin)
@@ -119,3 +117,5 @@ lazy val benchmark = project.in(file("benchmark"))
 
 lazy val root = project.in(file("."))
   .aggregate(core, benchmark)
+
+addCommandAlias("bench", "benchmark/jmh:run -i 10 -wi 10 -f 2 -t 1")
