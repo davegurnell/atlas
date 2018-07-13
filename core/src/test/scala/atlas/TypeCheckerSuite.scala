@@ -116,7 +116,7 @@ object TypeCheckerSuite extends SimpleTestSuite {
       IntType | StrType)
 
     assertSuccess(
-      expr"""(a: Int, b: String): Int | String -> if true then a else b""",
+      expr"""(a: Int, b: String): (Int | String) -> if true then a else b""",
       IntType | StrType)
 
     assertSuccess(
