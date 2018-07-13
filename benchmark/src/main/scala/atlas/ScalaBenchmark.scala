@@ -25,7 +25,7 @@ class ScalaBenchmark {
   @Benchmark def fib005() = fib(5)
   @Benchmark def fib010() = fib(10)
   @Benchmark def fib015() = fib(15)
-  @Benchmark def fib025() = fib(25)
+  // @Benchmark def fib025() = fib(25)
   // @Benchmark def fib050() = fib(50)
   // @Benchmark def fib100() = fib(100)
 }
