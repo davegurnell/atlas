@@ -3,7 +3,7 @@ package atlas
 trait NativeConstructorBoilerplate {
   def apply[R: ValueEncoder](func: () => R): Native =
     new Native0[R] {
-      def apply[F[_]]()(implicit interpreter: Interpreter[F]): F[R] = {
+      def apply[F[_]]()(implicit interpreter: Interpreter[F], env: Env): F[R] = {
         import interpreter._
         catchNonFatal(func())
       }
@@ -11,7 +11,7 @@ trait NativeConstructorBoilerplate {
 
   [#def apply[[#A1: ValueDecoder#], R: ValueEncoder](func: ([#A1#]) => R): Native =
     new Native1[[#A1#], R] {
-      def apply[F[_]]([#a1: A1#])(implicit interpreter: Interpreter[F]): F[R] = {
+      def apply[F[_]]([#a1: A1#])(implicit interpreter: Interpreter[F], env: Env): F[R] = {
         import interpreter._
         catchNonFatal(func([#a1#]))
       }

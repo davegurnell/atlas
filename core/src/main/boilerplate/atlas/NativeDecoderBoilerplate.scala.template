@@ -11,7 +11,7 @@ trait NativeDecoderBoilerplate {
       case func: FuncVal =>
         Right {
           new Native0[R] {
-            def apply[F[_]]()(implicit interpreter: Interpreter[F]): F[R] = {
+            def apply[F[_]]()(implicit interpreter: Interpreter[F], env: Env): F[R] = {
               import interpreter._
               for {
                 ans <- evalApp(func, Nil)
@@ -30,7 +30,7 @@ trait NativeDecoderBoilerplate {
       case func: FuncVal =>
         Right {
           new Native1[[#A1#], R] {
-            def apply[F[_]]([#a1: A1#])(implicit interpreter: Interpreter[F]): F[R] = {
+            def apply[F[_]]([#a1: A1#])(implicit interpreter: Interpreter[F], env: Env): F[R] = {
               import interpreter._
               val args = List([#a1.toAtlas#])
               for {

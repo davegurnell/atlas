@@ -22,7 +22,7 @@ final case class Closure(func: FuncExpr, env: Env) extends FuncVal {
 }
 
 abstract class Native extends Value {
-  def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value]
+  def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F], env: Env): F[Value]
 
   def orElse(that: Native): Native =
     OrElseNative(this, that)
@@ -32,16 +32,16 @@ object Native extends NativeConstructorBoilerplate
   with NativeDecoderBoilerplate
 
 final case class OrElseNative(a: Native, b: Native) extends Native {
-  def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value] = {
+  def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F], env: Env): F[Value] = {
     import interpreter._
     a.run(args).recoverWith { case error => b.run(args) }
   }
 }
 
 abstract class Native0[R: ValueEncoder] extends Native {
-  def apply[F[_]]()(implicit interpreter: Interpreter[F]): F[R]
+  def apply[F[_]]()(implicit interpreter: Interpreter[F], env: Env): F[R]
 
-  override def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value] = {
+  override def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F], env: Env): F[Value] = {
     import interpreter._
     args match {
       case Nil =>
@@ -54,9 +54,9 @@ abstract class Native0[R: ValueEncoder] extends Native {
 }
 
 [#abstract class Native1[[#A1: ValueDecoder#], R: ValueEncoder] extends Native {
-  def apply[F[_]]([#a1: A1#, ])(implicit interpreter: Interpreter[F]): F[R]
+  def apply[F[_]]([#a1: A1#, ])(implicit interpreter: Interpreter[F], env: Env): F[R]
 
-  override def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value] = {
+  override def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F], env: Env): F[Value] = {
     import interpreter._
     args match {
       case [#a1 #:: ]:: Nil =>

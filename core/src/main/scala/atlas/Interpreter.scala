@@ -1,44 +1,35 @@
 package atlas
 
 import atlas.syntax._
-
 import cats._
 import cats.data._
 import cats.implicits._
-
-import cats.mtl._
-import cats.mtl.implicits._
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 object Interpreter {
-  implicit def apply[F[_]](implicit monadError: MonadError[F, RuntimeError]): Interpreter[StateT[F, Env, ?]] =
-    new Interpreter[StateT[F, Env, ?]]
+  implicit def apply[F[_]](implicit monadError: MonadError[F, RuntimeError]): Interpreter[F] =
+    new Interpreter[F]
 
-  def evalAs[F[_], A](expr: Expr, env: Env = Env.create)(implicit monad: MonadError[F, RuntimeError], interpreter: Interpreter[StateT[F, Env, ?]], dec: ValueDecoder[A]): F[A] = {
+  def evalAs[F[_], A](expr: Expr, env: Env = Env.create)(implicit interpreter: Interpreter[F], dec: ValueDecoder[A]): F[A] = {
     import interpreter._
-    evalExpr(expr).flatMap(value => liftEither(value.toScala)).runA(env)
+    evalExpr(expr)(env.push).flatMap(value => liftEither(value.toScala))
   }
 
-  def eval[F[_]](expr: Expr, env: Env = Env.create)(implicit monad: MonadError[F, RuntimeError], interpreter: Interpreter[StateT[F, Env, ?]]): F[Value] = {
+  def eval[F[_]](expr: Expr, env: Env = Env.create)(implicit interpreter: Interpreter[F]): F[Value] = {
     import interpreter._
-    evalExpr(expr).runA(env)
+    evalExpr(expr)(env.push)
   }
 
-  val sync: Interpreter[Lambda[B => StateT[Lambda[A => EitherT[Eval, RuntimeError, A]], Env, B]]] =
+  val sync: Interpreter[EitherT[Eval, RuntimeError, ?]] =
     new Interpreter
 
-  def async(implicit ec: ExecutionContext): Interpreter[Lambda[B => StateT[Lambda[A => EitherT[Future, RuntimeError, A]], Env, B]]] =
+  def async(implicit ec: ExecutionContext): Interpreter[EitherT[Future, RuntimeError, ?]] =
     new Interpreter
 }
 
-class Interpreter[F[_]](
-  implicit
-  val monadError: MonadError[F, RuntimeError],
-  val monadState: MonadState[F, Env]
-) extends InfixImpl with PrefixImpl {
-  def evalExpr(expr: Expr): F[Value] =
+class Interpreter[F[_]](implicit val monadError: MonadError[F, RuntimeError]) extends InfixImpl with PrefixImpl {
+  def evalExpr(expr: Expr)(implicit env: Env): F[Value] =
     expr match {
       case expr: RefExpr     => evalRef(expr)
       case expr: AppExpr     => evalApp(expr)
@@ -59,87 +50,85 @@ class Interpreter[F[_]](
       case NullExpr          => pure(NullVal)
     }
 
-  def evalRef(ref: RefExpr): F[Value] =
+  def evalRef(ref: RefExpr)(implicit env: Env): F[Value] =
     getVariable(ref.id)
 
-  def evalApp(apply: AppExpr): F[Value] =
+  def evalApp(apply: AppExpr)(implicit env: Env): F[Value] =
     for {
       func <- evalExpr(apply.func)
       args <- apply.args.traverse(evalExpr)
       ans  <- evalApp(func, args)
     } yield ans
 
-  def evalApp(func: Value, args: List[Value]): F[Value] =
+  def evalApp(func: Value, args: List[Value])(implicit env: Env): F[Value] =
     func match {
       case closure : Closure => applyClosure(closure, args)
       case native  : Native  => applyNative(native, args)
       case value             => fail(s"Cannot call $value")
     }
 
-  def evalInfix(infix: InfixExpr): F[Value] =
+  def evalInfix(infix: InfixExpr)(implicit env: Env): F[Value] =
     for {
       arg1 <- evalExpr(infix.arg1)
       arg2 <- evalExpr(infix.arg2)
       ans  <- applyNative(infixImpl(infix.op), List(arg1, arg2))
     } yield ans
 
-  def evalPrefix(prefix: PrefixExpr): F[Value] =
+  def evalPrefix(prefix: PrefixExpr)(implicit env: Env): F[Value] =
     for {
       arg  <- evalExpr(prefix.arg)
       ans  <- applyNative(prefixImpl(prefix.op), List(arg))
     } yield ans
 
-  def evalFunc(func: FuncExpr): F[Value] =
-    createClosure(func)
+  def evalFunc(func: FuncExpr)(implicit env: Env): F[Value] =
+    pure(Closure(func, env))
 
-  def evalBlock(block: BlockExpr): F[Value] =
-    pushScope {
-      for {
-        _    <- evalStmts(block.stmts)
-        ans  <- evalExpr(block.expr)
-      } yield ans
-    }
+  def evalBlock(block: BlockExpr)(implicit env0: Env): F[Value] = {
+    val env1 = env0.push
+    for {
+      _    <- evalStmts(block.stmts)(env1)
+      ans  <- evalExpr(block.expr)(env1)
+    } yield ans
+  }
 
-  def evalStmts(stmts: List[Stmt]): F[Unit] =
-    stmts.foldLeft(pure(())) { (a, b) =>
-      a.flatMap(_ => evalStmt(b))
-    }
+  def evalStmts(stmts: List[Stmt])(implicit env: Env): F[Unit] =
+    stmts.foldLeft(pure(()))((a, b) => a.flatMap(_ => evalStmt(b)))
 
-  def evalStmt(stmt: Stmt): F[Unit] =
+  def evalStmt(stmt: Stmt)(implicit env: Env): F[Unit] =
     stmt match {
       case stmt: ExprStmt    => evalExprStmt(stmt)
       case stmt: LetStmt     => evalLetStmt(stmt)
       case stmt: LetTypeStmt => pure(())
     }
 
-  def evalLetStmt(stmt: LetStmt): F[Unit] =
+  def evalLetStmt(stmt: LetStmt)(implicit env: Env): F[Unit] =
     for {
       value <- evalExpr(stmt.expr)
       _     <- setVariable(stmt.varName, value)
     } yield ()
 
-  def evalExprStmt(stmt: ExprStmt): F[Unit] =
+  def evalExprStmt(stmt: ExprStmt)(implicit env: Env): F[Unit] =
     evalExpr(stmt.expr).map(_ => ())
 
-  def evalSelect(select: SelectExpr): F[Value] =
+  def evalSelect(select: SelectExpr)(implicit env: Env): F[Value] =
     for {
       value  <- evalExpr(select)
       result <- evalSelect(value, select.field)
     } yield result
 
-  def evalSelect(value: Value, id: String): F[Value] =
+  def evalSelect(value: Value, id: String)(implicit env: Env): F[Value] =
     value match {
       case ObjVal(fields) =>
         fields.collectFirst { case (n, v) if n == id => v } match {
-          case Some(value) => value.pure[F]
-          case None        => RuntimeError(s"Field not found: $id").raiseError[F, Value]
+          case Some(value) => pure(value)
+          case None        => fail(s"Field not found: $id")
         }
 
       case other =>
         fail(s"Could not select field '$id' from $other")
     }
 
-  def evalCond(cond: CondExpr): F[Value] =
+  def evalCond(cond: CondExpr)(implicit env: Env): F[Value] =
     for {
       test   <- evalExpr(cond.test)
       result <- test match {
@@ -149,68 +138,36 @@ class Interpreter[F[_]](
                 }
     } yield result
 
-  def evalObj(obj: ObjExpr): F[Value] =
+  def evalObj(obj: ObjExpr)(implicit env: Env): F[Value] =
     obj.fields.traverse { case (n, e) => evalExpr(e).map(v => (n, v)) }.map(ObjVal)
 
-  def evalArr(arr: ArrExpr): F[Value] =
+  def evalArr(arr: ArrExpr)(implicit env: Env): F[Value] =
     arr.exprs.traverse(evalExpr).map(ArrVal)
 
-  def applyClosure(closure: Closure, args: List[Value]): F[Value] =
-    swapEnv(closure.env) {
-      pushScope {
-        for {
-          env <- setVariables(closure.func.args.map(_.argName).zip(args))
-          ans <- evalExpr(closure.func.body)
-        } yield ans
-      }
-    }
+  def applyClosure(closure: Closure, args: List[Value])(implicit env: Env): F[Value] = {
+    val env1 = closure.env.push
+    for {
+      _   <- setVariables(closure.func.args.map(_.argName).zip(args))(env1)
+      ans <- evalExpr(closure.func.body)(env1)
+    } yield ans
+  }
 
-  def applyNative(native: Native, args: List[Value]): F[Value] =
-    native.run(args)(this)
+  def applyNative(native: Native, args: List[Value])(implicit env: Env): F[Value] =
+    native.run(args)(this, env)
 
   // Environment helpers ------------------------
 
-  def getVariable(name: String): F[Value] =
-    for {
-      env   <- currentEnv
-      value <- env.get(name) match {
-                case Some(value) => pure(value)
-                case None        => fail(s"Not in scope: $name")
-              }
-    } yield value
+  def getVariable(name: String)(implicit env: Env): F[Value] =
+    env.get(name) match {
+      case Some(value) => pure(value)
+      case None        => fail(s"Not in scope: $name")
+    }
 
-  def setVariable(name: String, value: Value): F[Unit] =
-    inspectEnv(env => env.destructiveSet(name, value))
+  def setVariable(name: String, value: Value)(implicit env: Env): F[Unit] =
+    pure(env.destructiveSet(name, value))
 
-  def setVariables(bindings: Seq[(String, Value)]): F[Unit] =
-    inspectEnv(env => env.destructiveSetAll(bindings))
-
-  def createClosure(func: FuncExpr): F[Value] =
-    inspectEnv(env => (Closure(func, env) : Value))
-
-  def swapEnv[A](env: Env)(body: F[A]): F[A] =
-    for {
-      env0 <- currentEnv
-      _    <- modifyEnv(_ => env)
-      ans  <- body
-      _    <- modifyEnv(_ => env0)
-    } yield ans
-
-  def pushScope[A](body: F[A]): F[A] =
-    for {
-      _   <- modifyEnv(_.push)
-      ans <- body
-      _   <- modifyEnv(_.pop)
-    } yield ans
-
-  def currentEnv: F[Env] =
-    monadState.get
-
-  def inspectEnv[A](func: Env => A): F[A] =
-    monadState.inspect(func)
-
-  def modifyEnv(func: Env => Env): F[Unit] =
-    monadState.modify(func)
+  def setVariables(bindings: Seq[(String, Value)])(implicit env: Env): F[Unit] =
+    pure(env.destructiveSetAll(bindings))
 
   // Error handling helpers ---------------------
 

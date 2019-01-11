@@ -4,8 +4,6 @@ import atlas.syntax._
 import cats._
 import cats.data._
 import cats.implicits._
-import cats.mtl._
-import cats.mtl.implicits._
 import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.annotations.{Scope => JmhScope, _}
 import scala.concurrent.{Future, Await}
