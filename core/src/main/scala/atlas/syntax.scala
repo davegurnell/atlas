@@ -1,24 +1,24 @@
 package atlas
 
 object syntax {
-  implicit class EnvOps[F[_]](val chain: ScopeChain[String, Value[F]]) extends AnyVal {
-    def set[A](id: String, value: A)(implicit enc: ValueEncoder[F, A]): Env[F] =
+  implicit class EnvOps[F[_]](val chain: ScopeChain[String, Value]) extends AnyVal {
+    def set[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Env =
       chain.set(id, enc(value))
 
-    def destructiveSet[A](id: String, value: A)(implicit enc: ValueEncoder[F, A]): Unit =
+    def destructiveSet[A](id: String, value: A)(implicit enc: ValueEncoder[A]): Unit =
       chain.destructiveSet(id, enc(value))
 
-    def destructiveSetAll[A](bindings: Seq[(String, A)])(implicit enc: ValueEncoder[F, A]): Unit =
+    def destructiveSetAll[A](bindings: Seq[(String, A)])(implicit enc: ValueEncoder[A]): Unit =
       chain.destructiveSetAll(bindings.map { case (n, a) => (n, enc(a)) })
   }
 
   implicit class ValueEncoderOps[A](val a: A) extends AnyVal {
-    def toAtlas[F[_]](implicit enc: ValueEncoder[F, A]): Value[F] =
+    def toAtlas[F[_]](implicit enc: ValueEncoder[A]): Value =
       enc(a)
   }
 
-  implicit class ValueDecoderOps[F[_]](val value: Value[F]) extends AnyVal {
-    def toScala[A](implicit dec: ValueDecoder[F, A]): F[A] =
+  implicit class ValueDecoderOps[F[_]](val value: Value) extends AnyVal {
+    def toScala[A](implicit dec: ValueDecoder[A]): Either[RuntimeError, A] =
       dec(value)
   }
 

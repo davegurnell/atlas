@@ -1,22 +1,21 @@
 package atlas
 
 import cats.implicits._
-import cats.{Applicative, ApplicativeError}
 
-trait ValueDecoder[F[_], A] {
-  def apply(value: Value[F]): F[A]
+trait ValueDecoder[A] {
+  def apply(value: Value): Either[RuntimeError, A]
 }
 
 object ValueDecoder extends ValueDecoderFunctions
   with ValueDecoderInstances
 
 trait ValueDecoderFunctions {
-  def apply[F[_], A](implicit instance: ValueDecoder[F, A]): ValueDecoder[F, A] =
+  def apply[A](implicit instance: ValueDecoder[A]): ValueDecoder[A] =
     instance
 
-  def pure[F[_], A](func: Value[F] => F[A]): ValueDecoder[F, A] =
-    new ValueDecoder[F, A] {
-      def apply(arg: Value[F]): F[A] =
+  def pure[A](func: Value => Either[RuntimeError, A]): ValueDecoder[A] =
+    new ValueDecoder[A] {
+      def apply(arg: Value): Either[RuntimeError, A] =
         func(arg)
     }
 }
@@ -24,62 +23,43 @@ trait ValueDecoderFunctions {
 trait ValueDecoderInstances {
   self: ValueDecoderFunctions =>
 
-  implicit def value[F[_]](implicit app: Applicative[F]): ValueDecoder[F, Value[F]] =
-    pure(_.pure[F])
+  implicit val value: ValueDecoder[Value] =
+    pure(Right(_))
 
-  implicit def unit[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Unit] =
+  implicit val unit: ValueDecoder[Unit] =
     pure {
-      case NullVal() => ().pure[F]
-      case value     => RuntimeError(s"Could not decode unit: $value").raiseError[F, Unit]
+      case NullVal => Right(())
+      case value   => Left(RuntimeError(s"Could not decode unit: $value"))
     }
 
-  implicit def boolean[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Boolean] =
+  implicit val boolean: ValueDecoder[Boolean] =
     pure {
-      case BoolVal(value) => value.pure[F]
-      case value          => RuntimeError(s"Could not decode boolean: $value").raiseError[F, Boolean]
+      case BoolVal(value) => Right(value)
+      case value          => Left(RuntimeError(s"Could not decode boolean: $value"))
     }
 
-  implicit def int[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Int] =
+  implicit val int: ValueDecoder[Int] =
     pure {
-      case IntVal(value) => value.pure[F]
-      case value         => RuntimeError(s"Could not decode int: $value").raiseError[F, Int]
+      case IntVal(value) => Right(value)
+      case value         => Left(RuntimeError(s"Could not decode int: $value"))
     }
 
-  implicit def double[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, Double] =
+  implicit val double: ValueDecoder[Double] =
     pure {
-      case IntVal(value) => (value * 1.0).pure[F]
-      case DblVal(value) => value.pure[F]
-      case value         => RuntimeError(s"Could not decode double: $value").raiseError[F, Double]
+      case IntVal(value) => Right(value * 1.0)
+      case DblVal(value) => Right(value)
+      case value         => Left(RuntimeError(s"Could not decode double: $value"))
     }
 
-  implicit def string[F[_]](implicit app: ApplicativeError[F, RuntimeError]): ValueDecoder[F, String] =
+  implicit val string: ValueDecoder[String] =
     pure {
-      case StrVal(value) => value.pure[F]
-      case value         => RuntimeError(s"Could not decode string: $value").raiseError[F, String]
+      case StrVal(value) => Right(value)
+      case value         => Left(RuntimeError(s"Could not decode string: $value"))
     }
 
-  implicit def list[F[_], A](implicit app: ApplicativeError[F, RuntimeError], dec: ValueDecoder[F, A]): ValueDecoder[F, List[A]] =
+  implicit def list[A](implicit dec: ValueDecoder[A]): ValueDecoder[List[A]] =
     pure {
       case ArrVal(values) => values.traverse(dec.apply)
-      case value          => RuntimeError(s"Could not decode list: $value").raiseError[F, List[A]]
+      case value          => Left(RuntimeError(s"Could not decode list: $value"))
     }
-
-  // import io.circe.{Decoder, Json}
-
-  // implicit def circe[F[_], A](implicit monad: MonadError[F, RuntimeError]): ValueDecoder[F, Json] =
-  //   pure { value =>
-  //     def toJson(value: Value[F]): F[Json] =
-  //       value match {
-  //         case NullVal()         => Json.Null.pure[F]
-  //         case BoolVal(value)    => (if(value) Json.True else Json.False).pure[F]
-  //         case IntVal(num)       => Json.fromInt(num).pure[F]
-  //         case DblVal(num)       => Json.fromDouble(num).fold(RuntimeError(s"Could not decode double: $num").raiseError[F, Json])(_.pure[F])
-  //         case StrVal(str)       => Json.fromString(str).pure[F]
-  //         case ArrVal(items)     => items.traverse(toJson).map(Json.fromValues)
-  //         case ObjVal(fields)    => fields.traverse { case (n, v) => toJson(v).map(j => (n, j)) }.map(Json.fromFields)
-  //         case value: FuncVal[F] => RuntimeError(s"Cannot decode function as JSON: $value").raiseError[F, Json]
-  //       }
-
-  //     toJson(value)
-  //   }
 }

@@ -51,8 +51,8 @@ class JythonBenchmark {
       ans = fib($n)
       """
 
-    println(code)
-    // interpreter.exec(code)
+    // println(code)
+    interpreter.exec(code)
     // println(interpreter.get("ans"))
     // assert(interpreter.get("ans").isInstanceOf[PyInteger])
   }

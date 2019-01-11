@@ -1,0 +1,49 @@
+package atlas
+
+import atlas.syntax._
+import cats._
+import cats.data._
+import cats.implicits._
+
+trait NativeDecoderBoilerplate {
+  implicit def native0Decoder[R: ValueEncoder: ValueDecoder]: ValueDecoder[Native0[R]] =
+    ValueDecoder.pure {
+      case func: FuncVal =>
+        Right {
+          new Native0[R] {
+            def apply[F[_]]()(implicit interpreter: Interpreter[F]): F[R] = {
+              import interpreter._
+              for {
+                ans <- evalApp(func, Nil)
+                res <- liftEither(ans.toScala[R])
+              } yield res
+            }
+          }
+        }
+
+      case _ =>
+        Left(RuntimeError("Could not decode value as a function (arity 0)"))
+    }
+
+  [#implicit def native1Decoder[[#A1: ValueEncoder: ValueDecoder#], R: ValueEncoder: ValueDecoder]: ValueDecoder[Native1[[#A1#], R]] =
+    ValueDecoder.pure {
+      case func: FuncVal =>
+        Right {
+          new Native1[[#A1#], R] {
+            def apply[F[_]]([#a1: A1#])(implicit interpreter: Interpreter[F]): F[R] = {
+              import interpreter._
+              val args = List([#a1.toAtlas#])
+              for {
+                ans <- evalApp(func, args)
+                res <- liftEither(ans.toScala[R])
+              } yield res
+            }
+          }
+        }
+
+      case _ =>
+        Left(RuntimeError("Could not decode value as a function (arity 1)"))
+    }#
+
+    ]
+}

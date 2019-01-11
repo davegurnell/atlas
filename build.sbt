@@ -97,6 +97,7 @@ lazy val core = project.in(file("core"))
       "com.davegurnell"      %% "unindent"      % "1.1.0",
       "com.lihaoyi"          %% "fastparse"     % "1.0.0",
       "org.typelevel"        %% "cats-core"     % "1.0.0",
+      "org.typelevel"        %% "cats-mtl-core" % "0.4.0",
       "io.monix"             %% "minitest"      % "2.1.1" % Test
     ),
     testFrameworks += new TestFramework("minitest.runner.Framework"),
@@ -118,4 +119,4 @@ lazy val benchmark = project.in(file("benchmark"))
 lazy val root = project.in(file("."))
   .aggregate(core, benchmark)
 
-addCommandAlias("bench", "benchmark/jmh:run -i 10 -wi 10 -f 2 -t 1")
+addCommandAlias("bench", "benchmark/jmh:run -i 5 -wi 5 -f 1 -t 1")

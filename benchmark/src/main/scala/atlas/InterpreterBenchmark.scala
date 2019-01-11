@@ -1,9 +1,11 @@
 package atlas
 
 import atlas.syntax._
-import cats.{Eval, MonadError}
-import cats.data.EitherT
+import cats._
+import cats.data._
 import cats.implicits._
+import cats.mtl._
+import cats.mtl.implicits._
 import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.annotations.{Scope => JmhScope, _}
 import scala.concurrent.{Future, Await}
@@ -13,9 +15,7 @@ import scala.concurrent.duration._
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 class SyncBenchmark extends InterpreterBenchmark[EitherT[Eval, RuntimeError, ?]] {
-  def monad = MonadError[EitherT[Eval, RuntimeError, ?], RuntimeError]
-
-  def interpreter = Interpreter.sync
+  def monadError = MonadError[EitherT[Eval, RuntimeError, ?], RuntimeError]
 
   def unpack[A](either: EitherT[Eval, RuntimeError, A]): A =
     either.value.value.right.get
@@ -24,18 +24,14 @@ class SyncBenchmark extends InterpreterBenchmark[EitherT[Eval, RuntimeError, ?]]
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 class AsyncBenchmark extends InterpreterBenchmark[EitherT[Future, RuntimeError, ?]] {
-  def monad = MonadError[EitherT[Future, RuntimeError, ?], RuntimeError]
-
-  def interpreter = Interpreter.async
+  def monadError = MonadError[EitherT[Future, RuntimeError, ?], RuntimeError]
 
   def unpack[A](eitherT: EitherT[Future, RuntimeError, A]): A =
     Await.result(eitherT.value, 60.seconds).right.get
 }
 
 abstract class InterpreterBenchmark[F[_]] {
-  implicit def monad: MonadError[F, RuntimeError]
-
-  def interpreter: Interpreter[F]
+  implicit def monadError: MonadError[F, RuntimeError]
 
   def unpack[A](value: F[A]): A
 
@@ -51,7 +47,7 @@ abstract class InterpreterBenchmark[F[_]] {
     val env =
       Env.create[F].set("n", n)
 
-    unpack(interpreter.evalAs[Int](program, env))
+    unpack(Interpreter.evalAs[F, Int](program, env))
   }
 
   def fib(n: Int): Int = {
@@ -66,7 +62,7 @@ abstract class InterpreterBenchmark[F[_]] {
     val env =
       Env.create[F].set("n", n)
 
-    unpack(interpreter.evalAs[Int](program, env))
+    unpack(Interpreter.evalAs[F, Int](program, env))
   }
 
 

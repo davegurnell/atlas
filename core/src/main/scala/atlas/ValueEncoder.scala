@@ -1,19 +1,19 @@
 package atlas
 
-trait ValueEncoder[F[_], A] {
-  def apply(value: A): Value[F]
+trait ValueEncoder[A] {
+  def apply(value: A): Value
 }
 
 object ValueEncoder extends ValueEncoderFunctions
   with ValueEncoderInstances
 
 trait ValueEncoderFunctions {
-  def apply[F[_], A](implicit enc: ValueEncoder[F, A]): ValueEncoder[F, A] =
+  def apply[A](implicit enc: ValueEncoder[A]): ValueEncoder[A] =
     enc
 
-  def pure[F[_], A](func: A => Value[F]): ValueEncoder[F, A] =
-    new ValueEncoder[F, A] {
-      def apply(arg: A): Value[F] =
+  def pure[A](func: A => Value): ValueEncoder[A] =
+    new ValueEncoder[A] {
+      def apply(arg: A): Value =
         func(arg)
     }
 }
@@ -21,42 +21,24 @@ trait ValueEncoderFunctions {
 trait ValueEncoderInstances {
   self: ValueEncoderFunctions =>
 
-  implicit def value[F[_], A <: Value[F]]: ValueEncoder[F, A] =
+  implicit def value[A <: Value]: ValueEncoder[A] =
     pure(value => value)
 
-  implicit def unit[F[_]]: ValueEncoder[F, Unit] =
-    pure(value => NullVal())
+  implicit val unit: ValueEncoder[Unit] =
+    pure(value => NullVal)
 
-  implicit def boolean[F[_]]: ValueEncoder[F, Boolean] =
+  implicit val boolean: ValueEncoder[Boolean] =
     pure(value => BoolVal(value))
 
-  implicit def int[F[_]]: ValueEncoder[F, Int] =
+  implicit val int: ValueEncoder[Int] =
     pure(value => IntVal(value))
 
-  implicit def double[F[_]]: ValueEncoder[F, Double] =
+  implicit val double: ValueEncoder[Double] =
     pure(value => DblVal(value))
 
-  implicit def string[F[_]]: ValueEncoder[F, String] =
+  implicit val string: ValueEncoder[String] =
     pure(value => StrVal(value))
 
-  implicit def list[F[_], A](implicit enc: ValueEncoder[F, A]): ValueEncoder[F, List[A]] =
+  implicit def list[A](implicit enc: ValueEncoder[A]): ValueEncoder[List[A]] =
     pure(list => ArrVal(list.map(enc.apply)))
-
-  // import io.circe.{Encoder, Json}
-  // import io.circe.syntax._
-
-  // implicit def circe[F[_]]: ValueEncoder[F, Json] =
-  //   pure { arg =>
-  //     def toAtlas(json: Json): Value[F] =
-  //       json.fold(
-  //         jsonNull    = NullVal(),
-  //         jsonBoolean = bool  => BoolVal(bool),
-  //         jsonNumber  = num   => num.toInt.fold[Value[F]](DblVal(num.toDouble))(IntVal[F]),
-  //         jsonString  = str   => StrVal(str),
-  //         jsonArray   = items => ArrVal(items.toList.map(toAtlas)),
-  //         jsonObject  = obj   => ObjVal(obj.toList.map { case (n, j) => (n, toAtlas(j)) })
-  //       )
-
-  //     toAtlas(arg.asJson)
-  //   }
 }

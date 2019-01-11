@@ -1,0 +1,75 @@
+package atlas
+
+import atlas.syntax._
+import cats._
+import cats.data._
+import cats.implicits._
+
+sealed abstract class Value
+
+final case class ObjVal(fields: List[(String, Value)]) extends Value
+final case class ArrVal(items: List[Value]) extends Value
+final case class StrVal(value: String) extends Value
+final case class IntVal(value: Int) extends Value
+final case class DblVal(value: Double) extends Value
+final case class BoolVal(value: Boolean) extends Value
+case object NullVal extends Value
+
+sealed abstract class FuncVal extends Value
+
+final case class Closure(func: FuncExpr, env: Env) extends FuncVal {
+  override def toString: String = s"Closure($func, ${env.scopes.length})"
+}
+
+abstract class Native extends Value {
+  def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value]
+
+  def orElse(that: Native): Native =
+    OrElseNative(this, that)
+}
+
+object Native extends NativeConstructorBoilerplate
+  with NativeDecoderBoilerplate
+
+final case class OrElseNative(a: Native, b: Native) extends Native {
+  def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value] = {
+    import interpreter._
+    a.run(args).recoverWith { case error => b.run(args) }
+  }
+}
+
+abstract class Native0[R: ValueEncoder] extends Native {
+  def apply[F[_]]()(implicit interpreter: Interpreter[F]): F[R]
+
+  override def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value] = {
+    import interpreter._
+    args match {
+      case Nil =>
+        apply().map(_.toAtlas)
+
+      case _ =>
+        fail("Could not execute native function (arity mismatch)")
+    }
+  }
+}
+
+[#abstract class Native1[[#A1: ValueDecoder#], R: ValueEncoder] extends Native {
+  def apply[F[_]]([#a1: A1#, ])(implicit interpreter: Interpreter[F]): F[R]
+
+  override def run[F[_]](args: List[Value])(implicit interpreter: Interpreter[F]): F[Value] = {
+    import interpreter._
+    args match {
+      case [#a1 #:: ]:: Nil =>
+        for {
+          [#a1 <- liftEither(a1.toScala[A1])#
+          ]
+          r <- apply([#a1#, ])
+        } yield r.toAtlas
+
+      case _ =>
+        fail("Could not execute native function (arity mismatch)")
+    }
+  }
+}#
+
+]

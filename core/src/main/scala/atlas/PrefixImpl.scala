@@ -1,20 +1,18 @@
 package atlas
 
-trait PrefixImpl[F[_]] {
-  self: Interpreter[F] =>
+trait PrefixImpl {
+  private val pos: Native =
+    Native((a: Int) => a) orElse
+    Native((a: Double) => a)
 
-  private val pos: Native[F] =
-    native((a: Int) => a) orElse
-    native((a: Double) => a)
+  private val neg: Native =
+    Native((a: Int) => -a) orElse
+    Native((a: Double) => -a)
 
-  private val neg: Native[F] =
-    native((a: Int) => -a) orElse
-    native((a: Double) => -a)
+  private val not: Native =
+    Native((a: Boolean) => !a)
 
-  private val not: Native[F] =
-    native((a: Boolean) => !a)
-
-  def prefixImpl(op: PrefixOp): Native[F] =
+  def prefixImpl(op: PrefixOp): Native =
     op match {
       case PrefixOp.Pos => pos
       case PrefixOp.Neg => neg
