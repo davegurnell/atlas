@@ -2,7 +2,7 @@ package atlas
 
 import cats.implicits._
 
-trait NativeImpl {
+object BasicEnv {
   private val map: Value =
     new Native2[Native1[Value, Value], List[Value], List[Value]] {
       def apply[F[_]](func: Native1[Value, Value], list: List[Value])(implicit interpreter: Interpreter[F]): F[List[Value]] = {

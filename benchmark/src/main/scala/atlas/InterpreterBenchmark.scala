@@ -30,6 +30,15 @@ class AsyncBenchmark extends InterpreterBenchmark[EitherT[Future, RuntimeError, 
     Await.result(eitherT.value, 60.seconds).right.get
 }
 
+@BenchmarkMode(Array(Mode.AverageTime))
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
+class IdBenchmark extends InterpreterBenchmark[Either[RuntimeError, ?]] {
+  def monadError = MonadError[Either[RuntimeError, ?], RuntimeError]
+
+  def unpack[A](either: Either[RuntimeError, A]): A =
+    either.right.get
+}
+
 abstract class InterpreterBenchmark[F[_]] {
   implicit def monadError: MonadError[F, RuntimeError]
 

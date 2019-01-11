@@ -5,7 +5,7 @@ trait NativeConstructorBoilerplate {
     new Native0[R] {
       def apply[F[_]]()(implicit interpreter: Interpreter[F]): F[R] = {
         import interpreter._
-        pure(func())
+        catchNonFatal(func())
       }
     }
 
@@ -13,7 +13,7 @@ trait NativeConstructorBoilerplate {
     new Native1[[#A1#], R] {
       def apply[F[_]]([#a1: A1#])(implicit interpreter: Interpreter[F]): F[R] = {
         import interpreter._
-        pure(func([#a1#]))
+        catchNonFatal(func([#a1#]))
       }
     }#
 

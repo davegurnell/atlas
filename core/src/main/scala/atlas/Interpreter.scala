@@ -13,8 +13,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 object Interpreter {
-  implicit def apply[F[_]](implicit monadError: MonadError[F, RuntimeError], monadState: MonadState[F, Env]): Interpreter[F] =
-    new Interpreter[F]
+  implicit def apply[F[_]](implicit monadError: MonadError[F, RuntimeError]): Interpreter[StateT[F, Env, ?]] =
+    new Interpreter[StateT[F, Env, ?]]
 
   def evalAs[F[_], A](expr: Expr, env: Env = Env.create)(implicit monad: MonadError[F, RuntimeError], interpreter: Interpreter[StateT[F, Env, ?]], dec: ValueDecoder[A]): F[A] = {
     import interpreter._
@@ -227,5 +227,9 @@ class Interpreter[F[_]](
     either.fold(_.raiseError[F, A], _.pure[F])
 
   def catchNonFatal[A](body: => A): F[A] =
-    try pure(body) catch { case NonFatal(exn) => fail("Error executing native code", Some(exn)) }
+    try {
+      pure(body)
+    } catch { case NonFatal(exn) =>
+      fail("Error executing native code", Some(exn))
+    }
 }

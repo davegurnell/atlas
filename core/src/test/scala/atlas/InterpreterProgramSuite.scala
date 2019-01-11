@@ -10,19 +10,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-object SyncInterpreterProgramSuite extends InterpreterProgramSuite(Interpreter.sync) {
+object SyncInterpreterProgramSuite extends InterpreterProgramSuite[EitherT[Eval, RuntimeError, ?]] {
   def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
     either.value.value
 }
 
-object AsyncInterpreterProgramSuite extends InterpreterProgramSuite(Interpreter.async) {
+object AsyncInterpreterProgramSuite extends InterpreterProgramSuite[EitherT[Future, RuntimeError, ?]] {
   def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
     Await.result(eitherT.value, 1.second)
 }
 
-abstract class InterpreterProgramSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
-  import interpreter.native
-
+abstract class InterpreterProgramSuite[F[_]](implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F] {
   test("recursive odd/even") {
     val code = prog"""
       let even = n -> if n == 0 then true else odd(n - 1)
@@ -79,7 +77,7 @@ abstract class InterpreterProgramSuite[F[_]](interpreter: Interpreter[F])(implic
       filter(inBounds, flatten(map(double, values)))
       """
 
-    val env = interpreter.basicEnv
+    val env = BasicEnv.basicEnv
 
     val expected = List(2, 5, 10, 7, 14)
 
@@ -112,10 +110,8 @@ abstract class InterpreterProgramSuite[F[_]](interpreter: Interpreter[F])(implic
   test("native functions") {
     val prog = prog"""average(10, 5)"""
 
-    val env = Env.create[F]
-      .set("average", native { (a: Double, b: Double) =>
-        (a + b) / 2
-      })
+    val env = Env.create
+      .set("average", Native((a: Double, b: Double) => (a + b) / 2))
 
     val expected = 7.5
 
@@ -129,8 +125,8 @@ abstract class InterpreterProgramSuite[F[_]](interpreter: Interpreter[F])(implic
 
     val exn = new Exception("Badness")
 
-    val env = Env.create[F]
-      .set("average", native { (a: Double, b: Double) =>
+    val env = Env.create
+      .set("average", Native { (a: Double, b: Double) =>
         if(a > b) throw exn
         0
       })

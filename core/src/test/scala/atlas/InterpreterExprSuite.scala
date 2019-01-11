@@ -10,19 +10,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-object SyncInterpreterExprSuite extends InterpreterExprSuite(Interpreter.sync) {
+object SyncInterpreterExprSuite extends InterpreterExprSuite[EitherT[Eval, RuntimeError, ?]] {
   def toEither[A](either: EitherT[Eval, RuntimeError, A]): Either[RuntimeError, A] =
     either.value.value
 }
 
-object AsyncInterpreterExprSuite extends InterpreterExprSuite(Interpreter.async) {
+object AsyncInterpreterExprSuite extends InterpreterExprSuite[EitherT[Future, RuntimeError, ?]] {
   def toEither[A](eitherT: EitherT[Future, RuntimeError, A]): Either[RuntimeError, A] =
     Await.result(eitherT.value, 1.second)
 }
 
-abstract class InterpreterExprSuite[F[_]](interpreter: Interpreter[F])(implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F](interpreter) {
-  import interpreter.native
-
+abstract class InterpreterExprSuite[F[_]](implicit monad: MonadError[F, RuntimeError]) extends InterpreterSuite[F] {
   test("literal") {
     assertSuccess(
       expr"true",
@@ -58,8 +56,8 @@ abstract class InterpreterExprSuite[F[_]](interpreter: Interpreter[F])(implicit 
       """
 
     val env = Env.create[F]
-     .set("add", native((a: Int, b: Int) => a + b))
-     .set("mul", native((a: Int, b: Int) => a * b))
+     .set("add", Native((a: Int, b: Int) => a + b))
+     .set("mul", Native((a: Int, b: Int) => a * b))
      .set("a", 2)
      .set("b", 3)
 
